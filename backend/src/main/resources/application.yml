@@ -1,0 +1,32 @@
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+spring:
+  application.name: seniormind-api
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    serialization.write-dates-as-timestamps: false
+    deserialization.fail-on-unknown-properties: false
+  main.banner-mode: off
+seniormind:
+  project-id: ${GOOGLE_CLOUD_PROJECT:seniormind-513700}
+  # App Check 토큰 aud/iss 확인용 프로젝트 번호(콘솔 > 프로젝트 설정). 비어 있으면 프로젝트 ID만 확인.
+  project-number: ${PROJECT_NUMBER:}
+  firebase-enabled: ${FIREBASE_ENABLED:true}
+  # off | log | enforce  — 무료 Apple 계정 기간에는 log
+  app-check-mode: ${APP_CHECK_MODE:log}
+  rate-limit-per-minute: ${RATE_LIMIT_PER_MINUTE:120}
+  # QR 스킴. 팀 공통은 memorycapsule, iOS 단독은 seniormind (docs/TODO.md T1)
+  pairing-scheme: ${PAIRING_SCHEME:seniormind}
+  # 로컬 개발 전용: Cloud Run(K_SERVICE)에서는 무시된다
+  dev-auth-bypass: ${DEV_AUTH_BYPASS:false}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    live-model: gpt-live-1
+    judge-model: gpt-6-luna
+    voice: ${OPENAI_VOICE:noeul}
+    delegation: client
+logging:
+  level:
+    root: INFO

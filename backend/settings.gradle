@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories {
+        // Maven Central 미러(Google). 원본이 요청 제한(429)을 걸 때도 안정적으로 받는다.
+        maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+        mavenCentral()
+    }
+}
+rootProject.name = 'seniormind-api'

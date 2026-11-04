@@ -7,7 +7,7 @@ AI 말벗 "기억이"와 대화하며 이야기를 기억 카드로 남기고, �
 |---|---|---|
 | `app/ios` | iOS 앱(SwiftUI, iOS 26+), 번들 ID `com.daljoalab.seniormind` | 1차 시니어 화면, 목 모드 |
 | `app/android` | Android 앱 | 예정 |
-| `backend` | Cloud Run API(Java 21, Spring Boot 3) | 예정 |
+| `backend` | Cloud Run API(Java 21, Spring Boot 3.5) | iOS 1차 화면용 API 구현, 테스트 21개. 카드 추출·회상·배치는 P2 |
 | `db` | Firestore 규칙·인덱스·설정·설정 스크립트(서울) | 작성 |
 | `docs/TODO.md` | 나중에 할 일 | |
 
