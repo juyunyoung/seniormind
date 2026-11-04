@@ -1,0 +1,266 @@
+{
+  "config": {
+    "config_version": "2026.11.04-1",
+    "_comment": "데이터 명세 v0.6.1 + 팀 문서 backend_spec v0.4.3 1.6·6.6. 앱은 모르는 키를 무시한다.",
+    "risk": {
+      "r3_threshold": 0.3,
+      "r2_threshold": 0.6,
+      "r1_threshold": 0.35,
+      "r1_watch_threshold": 0.25,
+      "frequency": {
+        "r2_sessions": 3,
+        "r2_days": 2,
+        "r1_sessions": 2,
+        "r1_days": 2,
+        "window_days": 7
+      },
+      "alert_cooldown_days": {
+        "R1": 7,
+        "R2": 3,
+        "R3": 0
+      },
+      "escalation_minutes_r3": 30
+    },
+    "safety": {
+      "phrases": [
+        {
+          "id": "R2_CHECK_IN",
+          "level": "R2",
+          "text": "최근 마음이나 생활에 어려움이 있을 수 있어요. 괜찮으시다면 지금 기분과 필요한 도움을 함께 살펴볼까요?",
+          "numbers": []
+        },
+        {
+          "id": "R2_SUPPORT",
+          "level": "R2",
+          "text": "혼자 감당하지 않으셔도 괜찮아요. 믿을 만한 가족이나 전문가에게 연락해 도움을 요청하실 수 있어요.",
+          "numbers": [
+            "1577-0199"
+          ]
+        },
+        {
+          "id": "SAFE_SUICIDE_R2",
+          "level": "R2",
+          "text": "힘든 마음을 말씀해 주셔서 감사합니다. 혼자 감당하지 않으셔도 됩니다. 지금 안전한 곳에 계신가요? 도움이 필요하시면 자살예방상담전화 109에 연락할 수 있어요.",
+          "numbers": [
+            "109"
+          ]
+        },
+        {
+          "id": "SAFE_ANXIETY",
+          "level": "R2",
+          "text": "매우 불안하고 힘드시겠어요. 지금 안전한 장소에 계신지 확인해 주세요. 불안이 계속되면 정신건강상담전화 1577-0199에서 도움을 받을 수 있습니다. 숨쉬기 어렵거나 심한 가슴 통증이 있다면 119로 연락해 주세요.",
+          "numbers": [
+            "1577-0199",
+            "119"
+          ]
+        },
+        {
+          "id": "R3_SAFETY_CHECK",
+          "level": "R3",
+          "text": "지금 안전이 가장 중요합니다. 현재 안전한 곳에 계신가요? 가까운 믿을 만한 사람에게 바로 도움을 요청해 주세요.",
+          "numbers": [
+            "119"
+          ]
+        },
+        {
+          "id": "R3_CRISIS_HELP",
+          "level": "R3",
+          "text": "지금 위험하다고 느끼신다면 혼자 계시지 마시고 즉시 119에 연락하거나 가까운 응급실에서 도움을 받으세요.",
+          "numbers": [
+            "119"
+          ]
+        },
+        {
+          "id": "R3_SUICIDE_SUPPORT",
+          "level": "R3",
+          "text": "죽음이나 자해에 관한 생각 때문에 힘드시다면 지금 바로 도움을 요청해 주세요. 자살예방상담전화 109에서 상담받으실 수 있습니다. 즉각적인 위험이 있다면 119에 연락해 주세요.",
+          "numbers": [
+            "109",
+            "119"
+          ]
+        },
+        {
+          "id": "SAFE_SUICIDE_R3",
+          "level": "R3",
+          "text": "지금은 안전을 확인하는 것이 가장 중요합니다. 혼자 계시다면 가까운 사람에게 바로 도움을 요청해 주세요. 위험이 임박했다면 지금 119에 연락해 주세요. 자살예방상담전화 109에서도 도움을 받을 수 있습니다.",
+          "numbers": [
+            "119",
+            "109"
+          ]
+        },
+        {
+          "id": "SAFE_CONFUSION",
+          "level": "R3",
+          "text": "갑자기 시간이나 장소를 알아보기 어렵거나 평소와 다르게 혼란스럽다면 즉시 의료적 확인이 필요할 수 있습니다. 지금 119에 연락하고 가까운 사람에게 도움을 요청해 주세요.",
+          "numbers": [
+            "119"
+          ]
+        },
+        {
+          "id": "SAFE_BEHAVIOR",
+          "level": "R3",
+          "text": "지금 신변에 위협이 있다면 우선 안전한 장소로 이동하고 경찰 112에 연락해 주세요. 다치거나 응급진료가 필요하면 119에 연락해 주세요.",
+          "numbers": [
+            "112",
+            "119"
+          ]
+        },
+        {
+          "id": "SAFE_MEDICATION",
+          "level": "R3",
+          "text": "약을 평소보다 많이 드셨거나 복용 후 의식이 흐려진다면 응급상황일 수 있습니다. 지금 바로 119에 연락해 주세요.",
+          "numbers": [
+            "119"
+          ]
+        }
+      ],
+      "selection_unused": [
+        "R3_CRISIS_HELP",
+        "SAFE_RESPIRATORY",
+        "SAFE_STROKE"
+      ],
+      "hotline": {
+        "name": "자살예방상담전화",
+        "number": "109"
+      },
+      "contacts": [
+        {
+          "number": "109",
+          "name": "자살예방상담전화",
+          "use": "자살 위기 상담"
+        },
+        {
+          "number": "119",
+          "name": "구급·화재 긴급신고",
+          "use": "응급 의학적 위험"
+        },
+        {
+          "number": "112",
+          "name": "경찰 긴급신고",
+          "use": "신변 위협·폭력"
+        },
+        {
+          "number": "1577-0199",
+          "name": "정신건강상담전화",
+          "use": "정서 위기 상담"
+        }
+      ],
+      "numbers_verified_at": "",
+      "actions": {
+        "R1": "CHECK_IN",
+        "R2": "PROMPT_CONTACT",
+        "R3": "URGENT_SAFETY_CHECK"
+      },
+      "action_text": {
+        "CHECK_IN": "일상적인 안부를 확인해 주세요.",
+        "PROMPT_CONTACT": "적극적으로 안부를 확인하고, 필요하면 상담을 연결해 주세요.",
+        "URGENT_SAFETY_CHECK": "지금 바로 안전을 확인하고, 응급 대응을 연결해 주세요."
+      }
+    },
+    "session": {
+      "max_seconds": 600,
+      "daily_limit": 6
+    },
+    "decision": {
+      "batch_ms": 1000,
+      "max_input_chars": 1600,
+      "reaction_options": [
+        "hold",
+        "neutral",
+        "happy",
+        "empathy",
+        "surprised_happy",
+        "surprised_concern"
+      ],
+      "q10_options": [
+        "same_intent_question"
+      ]
+    },
+    "emotion": {
+      "display_map": {
+        "joy": "POSITIVE",
+        "neutral": "NEUTRAL",
+        "sadness": "NEGATIVE",
+        "anger": "NEGATIVE",
+        "fear": "NEGATIVE",
+        "disgust": "NEGATIVE",
+        "surprise": "SURPRISE"
+      },
+      "intensity_bins": [
+        0.34,
+        0.67
+      ]
+    },
+    "trajectory": {
+      "baseline": {
+        "min_days": 10,
+        "min_sessions": 20,
+        "min_utterances": 50,
+        "min_span_days": 14,
+        "max_span_days": 60
+      },
+      "sigma_floor": {
+        "ratio": 0.05,
+        "count": 0.2
+      },
+      "z_stages": [
+        1,
+        1.5,
+        2
+      ],
+      "confirm_windows": 2
+    },
+    "guardian_topics": {
+      "max": 3,
+      "min_sessions": 3,
+      "min_days": 2,
+      "window_days": 30
+    },
+    "retrieval": {
+      "weights": {
+        "semantic": 0.3,
+        "salience": 0.15,
+        "affinity": 0.15,
+        "emotion_fit": 0.15,
+        "recency": 0.1,
+        "person": 0.1,
+        "life_period": 0.05
+      },
+      "similarity_min": 0.35,
+      "score_min": 0.45,
+      "top_k": 5,
+      "max_cards": 2,
+      "reuse_days": 3,
+      "recency_decay": 0.98,
+      "dedupe_min": 0.85,
+      "open_loop_bonus": 0.1,
+      "open_loop_window_days": 3,
+      "painful_user_initiated_min": 0.6
+    },
+    "preferred": {
+      "min_spontaneous": 3,
+      "min_positive": 2,
+      "min_affinity": 0.6,
+      "logic": "AND"
+    },
+    "schedule": {
+      "reminder_after_min_default": 10,
+      "missed_after_min_default": 60,
+      "max_reminders": 3,
+      "alarm_horizon_hours": 48
+    },
+    "client": {
+      "min_version": {
+        "ios": "0.1.0",
+        "android": "0.1"
+      }
+    },
+    "pricing": {
+      "live_per_min_usd": 0.05,
+      "decision_per_mtok_usd": 0.1
+    }
+  },
+  "signature": null,
+  "active": true,
+  "published_by": "seed"
+}
