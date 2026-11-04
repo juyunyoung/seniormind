@@ -1,58 +1,359 @@
 {
   "indexes": [
-    { "collectionGroup": "sessions", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "started_at", "order": "DESCENDING" } ] },
-    { "collectionGroup": "sessions", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "extraction_status", "order": "ASCENDING" }, { "fieldPath": "retry_count", "order": "ASCENDING" } ] },
-
-    { "collectionGroup": "assessments", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "timestamp", "order": "DESCENDING" } ] },
-    { "collectionGroup": "assessments", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "session_id", "order": "ASCENDING" }, { "fieldPath": "utterance_id", "order": "ASCENDING" }, { "fieldPath": "final", "order": "ASCENDING" } ] },
-    { "collectionGroup": "assessments", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "risk_domains", "arrayConfig": "CONTAINS" }, { "fieldPath": "timestamp", "order": "DESCENDING" } ] },
-
-    { "collectionGroup": "memory_cards", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "deleted", "order": "ASCENDING" }, { "fieldPath": "mention_count", "order": "DESCENDING" } ] },
-    { "collectionGroup": "memory_cards", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "deleted", "order": "ASCENDING" },
-                  { "fieldPath": "embedding", "vectorConfig": { "dimension": 1024, "flat": {} } } ] },
-    { "collectionGroup": "memory_cards", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "open_loop_exists", "order": "ASCENDING" }, { "fieldPath": "expected_date", "order": "ASCENDING" } ] },
-
-    { "collectionGroup": "card_mentions", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "mentioned_at", "order": "DESCENDING" } ] },
-    { "collectionGroup": "card_mentions", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "card_id", "order": "ASCENDING" }, { "fieldPath": "session_id", "order": "ASCENDING" } ] },
-
-    { "collectionGroup": "guardians", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "senior_id", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" } ] },
-    { "collectionGroup": "guardians", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "guardian_id", "order": "ASCENDING" }, { "fieldPath": "status", "order": "ASCENDING" } ] },
-
-    { "collectionGroup": "devices", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "user_id", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "last_seen_at", "order": "DESCENDING" } ] },
-
-    { "collectionGroup": "alerts", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "senior_id", "order": "ASCENDING" }, { "fieldPath": "guardian_id", "order": "ASCENDING" }, { "fieldPath": "created_at", "order": "DESCENDING" } ] },
-    { "collectionGroup": "alerts", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "senior_id", "order": "ASCENDING" }, { "fieldPath": "guardian_id", "order": "ASCENDING" },
-                  { "fieldPath": "type", "order": "ASCENDING" }, { "fieldPath": "last_detected_at", "order": "DESCENDING" } ] },
-
-    { "collectionGroup": "schedules", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "senior_id", "order": "ASCENDING" }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "updated_at", "order": "ASCENDING" } ] },
-    { "collectionGroup": "schedule_logs", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "senior_id", "order": "ASCENDING" }, { "fieldPath": "due_at", "order": "ASCENDING" } ] },
-    { "collectionGroup": "schedule_logs", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "due_at", "order": "ASCENDING" } ] },
-
-    { "collectionGroup": "items", "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "type", "order": "ASCENDING" }, { "fieldPath": "created_at", "order": "DESCENDING" } ] }
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "started_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "started_at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "extraction_status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "retry_count",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "session_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "utterance_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "final",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "assessments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "risk_domains",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "memory_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "deleted",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "mention_count",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "memory_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "deleted",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "embedding",
+          "vectorConfig": {
+            "dimension": 1024,
+            "flat": {}
+          }
+        }
+      ]
+    },
+    {
+      "collectionGroup": "memory_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "open_loop_exists",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expected_date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "card_mentions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "mentioned_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "card_mentions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "card_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "session_id",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "guardians",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "senior_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "guardians",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "guardian_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "devices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "last_seen_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "senior_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "guardian_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "senior_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "guardian_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "last_detected_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "schedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "senior_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updated_at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "schedule_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "senior_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "due_at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "schedule_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "due_at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    }
   ],
   "fieldOverrides": [
-    { "collectionGroup": "parts", "fieldPath": "text", "indexes": [] },
-    { "collectionGroup": "memory_cards", "fieldPath": "text", "indexes": [] },
-    { "collectionGroup": "memory_cards", "fieldPath": "memorable_phrase", "indexes": [] },
-    { "collectionGroup": "config_versions", "fieldPath": "config", "indexes": [] }
+    {
+      "collectionGroup": "parts",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "memory_cards",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "memory_cards",
+      "fieldPath": "memorable_phrase",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "config_versions",
+      "fieldPath": "config",
+      "indexes": []
+    }
   ]
 }

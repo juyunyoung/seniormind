@@ -11,3 +11,5 @@
 | T7 | 동의 문구 교체 | 작업 목록 L13 완료 후 | 앱의 자리 표시 문구와 `ConsentStep.version = "draft"`를 확정본으로. |
 | T8 | 상담 번호 확인일 | 배포 전 | 설정의 `safety.numbers_verified_at`이 비어 있으면 배포 금지. 확인 후 날짜 기입. |
 | T9 | GitHub `main` 보호 | 지금 | Settings → Branches → `main` 규칙: PR 필수, 강제 push 금지. 도구로는 설정할 수 없어 직접 켜야 한다. |
+| T10 | 백엔드 P2 | iOS 실서버 연결 확인 후 | 카드 추출·임베딩·`/recall`, 배치(기준선·추세, 일정 미확인, 자막 7일 만료, 추출 재시도, R3 30분 미확인 재발송, 방해 금지 시간 뒤 재발송), 설정 서명. |
+| T11 | OpenAI 실제 형식 맞추기 | 키 등록 직후 | `backend/README.md` "실제 OpenAI로 확인할 것". 첫 호출 응답을 보고 `DecisionQuestions`·`DecisionParser`만 고친다. |
