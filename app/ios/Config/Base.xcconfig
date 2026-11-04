@@ -1,0 +1,8 @@
+// 기본값. 개인 값은 같은 폴더의 Local.xcconfig(저장소 제외)에서 덮어쓴다.
+// 무료 Apple 계정(Personal Team)에서도 빌드되도록 기본 권한 파일은 Free.
+MC_DEVELOPMENT_TEAM =
+MC_ENTITLEMENTS = SeniorMind/Entitlements/Free.entitlements
+MC_API_BASE_URL = https:/$()/example.invalid
+MC_USE_MOCK = YES
+
+#include? "Local.xcconfig"

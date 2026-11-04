@@ -1,0 +1,63 @@
+# XcodeGen 설정. Mac에서: brew install xcodegen && cd app/ios && xcodegen generate
+name: SeniorMind
+options:
+  bundleIdPrefix: com.daljoalab
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: ko
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    CODE_SIGN_STYLE: Automatic
+    # 팀 ID·권한 파일·서버 주소는 Config/Local.xcconfig에서 지정(저장소에 올리지 않음)
+    DEVELOPMENT_TEAM: $(MC_DEVELOPMENT_TEAM)
+packages:
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    from: "130.0.0"
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "12.0.0"
+targets:
+  SeniorMind:
+    type: application
+    platform: iOS
+    sources:
+      - path: SeniorMind
+        excludes:
+          - "Entitlements/**"
+    dependencies:
+      - package: WebRTC
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseMessaging
+      - package: Firebase
+        product: FirebaseAppCheck
+    info:
+      path: SeniorMind/Info.plist
+      properties:
+        CFBundleDisplayName: 기억의 캡슐
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSMicrophoneUsageDescription: 기억이와 목소리로 대화하려면 마이크가 필요해요.
+        NSCameraUsageDescription: 보호자 등록 QR 코드를 읽으려면 카메라가 필요해요.
+        NSAlarmKitUsageDescription: 약 드실 시간 같은 일정을 알람으로 알려 드려요.
+        UIBackgroundModes: [remote-notification]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.daljoalab.seniormind
+            # iOS 전용 스킴. 팀 공통 계약은 memorycapsule:// → 나중에 한꺼번에 맞춤(docs/TODO.md)
+            CFBundleURLSchemes: [seniormind]
+        MC_API_BASE_URL: $(MC_API_BASE_URL)
+        MC_USE_MOCK: $(MC_USE_MOCK)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.daljoalab.seniormind
+        CODE_SIGN_ENTITLEMENTS: $(MC_ENTITLEMENTS)
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle

@@ -1,0 +1,9 @@
+// 이 파일을 Local.xcconfig로 복사해 값을 채운다. Local.xcconfig는 저장소에 올리지 않는다.
+MC_DEVELOPMENT_TEAM = ABCDE12345
+
+// 유료 멤버십 전환 후: 푸시·시간 민감 알림·Sign in with Apple·App Attest
+// MC_ENTITLEMENTS = SeniorMind/Entitlements/Paid.entitlements
+
+// 백엔드(Cloud Run)가 준비되면
+// MC_API_BASE_URL = https:/$()/seniormind-api-xxxxx-du.a.run.app
+// MC_USE_MOCK = NO
