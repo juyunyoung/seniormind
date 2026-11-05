@@ -53,7 +53,7 @@ Java 21, Spring Boot 3.5, Gradle. 기능 명세의 원본은 팀 저장소 `memo
 
 ## PC·스크립트 호출 막기
 
-1. **Firebase ID 토큰(적용):** 모든 API가 검증합니다(`/healthz`만 예외).
+1. **Firebase ID 토큰(적용):** 모든 API가 검증합니다(`/health`만 예외).
 2. **App Check(적용, 지금은 기록만):** `X-Firebase-AppCheck` 토큰을 공개키로 검증합니다(`AppCheckVerifier`). `APP_CHECK_MODE=log`는 실패를 기록만 하고, 유료 Apple 계정 전환 후 `enforce`로 바꾸면 실패 요청을 401로 막습니다.
 3. **사용자별 호출 제한(적용):** UID당 분당 120회, 일일 대화 상한.
 
