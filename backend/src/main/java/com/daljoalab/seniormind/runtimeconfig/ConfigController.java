@@ -22,6 +22,7 @@ public class ConfigController {
         return out;
     }
 
-    @GetMapping("/healthz")
+    /** /healthz는 Cloud Run이 예약한 경로라 앱까지 오지 않는다(404). */
+    @GetMapping("/health")
     public Map<String, String> health() { return Map.of("status", "ok"); }
 }

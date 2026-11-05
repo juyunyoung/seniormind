@@ -26,7 +26,7 @@ gcloud run deploy "$SERVICE" --source . --region "$REGION" \
 
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')
 echo "배포 완료: $URL"
-curl -fsS "$URL/healthz" && echo
+curl -fsS "$URL/health" && echo
 echo "iOS 설정(app/ios/Config/Local.xcconfig):"
 echo "  MC_API_BASE_URL = https:/\$()/${URL#https://}"
 echo "  MC_USE_MOCK = NO"

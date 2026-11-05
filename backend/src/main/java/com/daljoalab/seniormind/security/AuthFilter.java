@@ -42,7 +42,7 @@ public class AuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest req) {
-        return req.getRequestURI().equals("/healthz");
+        return req.getRequestURI().equals("/health");
     }
 
     @Override

@@ -27,7 +27,7 @@ class ApplicationWiringTest {
 
     @Test
     void healthIsPublic() throws Exception {
-        mvc.perform(get("/healthz")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));
+        mvc.perform(get("/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));
     }
 
     @Test
