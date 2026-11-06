@@ -1,18 +1,80 @@
 import SwiftUI
+import Observation
 import CoreImage.CIFilterBuiltins
 
-/// S08 설정·도움(시니어): 보호자 등록(QR), 연결된 보호자·연결 끊기, 동의 확인·철회, 알람 권한. 앱 계획서 1.1·2.1.
+// MARK: - S08 말로 조작하기
+
+/// S08 · 무엇을 도와드릴까요? — 말하는 속도, "보호자 연결해줘", 홈으로 가기.
+/// 동의 철회·연결 끊기는 와이어프레임에 없지만 개인정보 철회 수단이라 마지막 줄에 둔다.
 struct SeniorSettingsView: View {
     @Environment(AppState.self) private var app
-    @Environment(\.dismiss) private var dismiss
+    @Environment(SeniorRouter.self) private var router
+
+    var body: some View {
+        SeniorScaffold(onBack: { router.pop() }) {
+            SpeechBubble(text: "무엇을 도와드릴까요?")
+            SmallBird(size: 130).padding(.top, 14)
+            VStack(spacing: 12) {
+                SeniorMenuRow(title: "말하는 속도 · \(app.speechRate == "slow" ? "천천히" : "보통")", trailing: nil) { router.push(.speed) }
+                SeniorMenuRow(title: "“보호자 연결해줘”", trailing: nil) { startPairing() }
+                SeniorMenuRow(title: "연결된 보호자 · 동의 관리", trailing: "›") { router.push(.manage) }
+            }
+            .padding(.top, 18)
+        } bottom: {
+            Button("홈으로 가기") { router.home() }.buttonStyle(SecondaryButtonStyle())
+        }
+        .onAppear { Narrator.shared.say("무엇을 도와드릴까요?") }
+    }
+
+    private func startPairing() {
+        // 서버가 연결 코드 발급 전에 확인하는 동의(보호자 공유·일정 공유). 없으면 동의 화면을 먼저.
+        let d = UserDefaults.standard
+        let ok = d.bool(forKey: "mc.consent.guardian_share") && d.bool(forKey: "mc.consent.schedule_share")
+        router.push(ok ? .pairMenu : .pairConsent)
+    }
+}
+
+// MARK: - S13 말하는 속도
+
+struct SpeechRateView: View {
+    @Environment(AppState.self) private var app
+    @Environment(SeniorRouter.self) private var router
+
+    var body: some View {
+        SeniorScaffold(onBack: { router.pop() }) {
+            SpeechBubble(text: "말하는 속도를\n골라 주세요.")
+            SmallBird(size: 130).padding(.top, 14)
+            VStack(spacing: 12) {
+                option("천천히", value: "slow")
+                option("보통", value: "normal")
+            }
+            .padding(.top, 18)
+        } bottom: {
+            Button("홈으로 가기") { router.home() }.buttonStyle(SecondaryButtonStyle())
+        }
+        .onAppear { Narrator.shared.say("말하는 속도를 골라 주세요.") }
+    }
+
+    private func option(_ title: String, value: String) -> some View {
+        let selected = app.speechRate == value
+        return SeniorMenuRow(title: selected ? "\(title) ✓" : title, trailing: nil) {
+            Task { await app.setSpeechRate(value); Narrator.shared.say("\(title)으로 말할게요.") }
+        }
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: - 연결된 보호자 · 동의 관리 (와이어프레임 없음)
+
+struct SeniorManageView: View {
+    @Environment(AppState.self) private var app
+    @Environment(SeniorRouter.self) private var router
     @State private var links: [GuardianLink] = []
-    @State private var showPairing = false
-    @State private var needsConsent = false
     @State private var unlinkTarget: GuardianLink?
     @State private var consents: [ConsentType: Bool] = [:]
 
     private struct ConsentRow: Identifiable { let type: ConsentType; let title: String; var id: String { type.rawValue } }
-    private let seniorTypes: [ConsentRow] = [
+    private let rows: [ConsentRow] = [
         .init(type: .voiceTransfer, title: "목소리 전송"), .init(type: .transcriptStore, title: "대화 내용 보관"),
         .init(type: .memoryCard, title: "기억 카드"), .init(type: .sensitive, title: "힘든 신호 알림"),
         .init(type: .guardianShare, title: "보호자에게 요약 보이기"), .init(type: .scheduleShare, title: "약·일정 함께 챙기기"),
@@ -20,80 +82,46 @@ struct SeniorSettingsView: View {
     ]
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button { startPairing() } label: {
-                        Label("보호자 등록", systemImage: "qrcode").font(.title3.weight(.semibold))
-                    }
-                    .frame(minHeight: 56)
-                }
-                Section("연결된 보호자") {
-                    if links.isEmpty { Text("아직 연결된 보호자가 없어요.").foregroundStyle(Theme.muted) }
-                    ForEach(links) { link in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(link.displayName ?? link.relation ?? "보호자").font(.headline)
-                                Text(link.linkedAt.formatted(date: .abbreviated, time: .omitted)).font(.footnote).foregroundStyle(Theme.muted)
-                            }
-                            Spacer()
-                            Button("연결 끊기", role: .destructive) { unlinkTarget = link }.buttonStyle(.bordered)
-                        }
-                        .frame(minHeight: 56)
+        SeniorScaffold(onBack: { router.pop() }) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("연결된 보호자").font(.system(size: 22, weight: .bold))
+                if links.isEmpty { Text("아직 연결된 보호자가 없어요.").font(.system(size: 19)).foregroundStyle(Theme.muted) }
+                ForEach(links) { link in
+                    SeniorCard {
+                        Text(link.displayName ?? link.relation ?? "보호자").font(.system(size: 22, weight: .bold))
+                        Button("연결 끊기", role: .destructive) { unlinkTarget = link }.font(.system(size: 19, weight: .semibold))
                     }
                 }
-                Section {
-                    ForEach(seniorTypes) { row in
-                        Toggle(row.title, isOn: Binding(get: { consents[row.type] ?? false }, set: { set(row.type, $0) }))
-                            .font(.title3).frame(minHeight: 48)
-                    }
-                } header: { Text("동의 확인·철회") } footer: {
-                    Text("목소리 전송과 대화 내용 보관을 끄면 기억이와 대화할 수 없어요.")
+                Text("동의 확인·철회").font(.system(size: 22, weight: .bold)).padding(.top, 10)
+                ForEach(rows) { row in
+                    Toggle(row.title, isOn: Binding(get: { consents[row.type] ?? false }, set: { set(row.type, $0) }))
+                        .font(.system(size: 20)).frame(minHeight: 52)
                 }
-                Section("알람") {
-                    Button("알람 권한 확인") { Task { _ = await AlarmScheduler.shared.requestPermission() } }
-                }
+                Text("목소리 전송과 대화 내용 보관을 끄면 기억이와 대화할 수 없어요.")
+                    .font(.system(size: 17)).foregroundStyle(Theme.muted)
+                Button("알람 권한 확인") { Task { _ = await AlarmScheduler.shared.requestPermission() } }
+                    .font(.system(size: 19, weight: .semibold)).padding(.top, 6)
             }
-            .navigationTitle("설정·도움")
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() } } }
-            .task { loadConsents(); await reload() }
-            .sheet(isPresented: $needsConsent) {
-                // 보호자 연결 전 4~7단계 동의(앱 계획서 1.1, 2.1)
-                ConsentFlowView(role: .senior, steps: ConsentStep.seniorGuardian) {
-                    UserDefaults.standard.set(true, forKey: "mc.consent.guardianShare")
-                    loadConsents()
-                    needsConsent = false
-                    showPairing = true
-                }
-            }
-            .fullScreenCover(isPresented: $showPairing) {
-                PairingQRView { Task { await reload() } }
-            }
-            .confirmationDialog("보호자 연결을 끊을까요?", isPresented: Binding(get: { unlinkTarget != nil }, set: { if !$0 { unlinkTarget = nil } }),
-                                titleVisibility: .visible) {
-                Button("연결 끊기", role: .destructive) {
-                    if let target = unlinkTarget { Task { try? await app.api.unlink(linkId: target.linkId); await reload() } }
-                }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } bottom: {
+            Button("홈으로 가기") { router.home() }.buttonStyle(SecondaryButtonStyle())
+        }
+        .task { load(); await reload() }
+        .confirmationDialog("보호자 연결을 끊을까요?", isPresented: Binding(get: { unlinkTarget != nil }, set: { if !$0 { unlinkTarget = nil } }),
+                            titleVisibility: .visible) {
+            Button("연결 끊기", role: .destructive) {
+                if let t = unlinkTarget { Task { try? await app.api.unlink(linkId: t.linkId); await reload() } }
             }
         }
-    }
-
-    private func startPairing() {
-        let ok = (consents[.guardianShare] ?? false) && (consents[.scheduleShare] ?? false)
-        if ok { showPairing = true } else { needsConsent = true }
     }
 
     private func reload() async {
         links = (try? await app.api.links()) ?? []
         app.hasGuardian = !links.isEmpty
     }
-
-    private func loadConsents() {
-        var map: [ConsentType: Bool] = [:]
-        for row in seniorTypes { map[row.type] = UserDefaults.standard.bool(forKey: "mc.consent.\(row.type.rawValue)") }
-        consents = map
+    private func load() {
+        for row in rows { consents[row.type] = UserDefaults.standard.bool(forKey: "mc.consent.\(row.type.rawValue)") }
     }
-
     private func set(_ type: ConsentType, _ granted: Bool) {
         consents[type] = granted
         UserDefaults.standard.set(granted, forKey: "mc.consent.\(type.rawValue)")
@@ -102,76 +130,194 @@ struct SeniorSettingsView: View {
     }
 }
 
-/// QR 표시 화면. 서버가 준 qr_payload를 그대로 그린다(두 OS가 같은 내용).
-struct PairingQRView: View {
-    var onLinked: () -> Void
-    @Environment(AppState.self) private var app
-    @Environment(\.dismiss) private var dismiss
-    @State private var pairing: PairingCode?
-    @State private var remaining = 300
-    @State private var linked = false
-    @State private var error: String?
+// MARK: - 보호자 연결 (P01·P02·P03·P05·P06)
 
-    var body: some View {
-        VStack(spacing: 24) {
-            if linked {
-                Spacer()
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 80)).foregroundStyle(Theme.green)
-                Text("연결됐어요").font(.system(size: 32, weight: .bold))
-                Spacer()
-                Button("확인") { onLinked(); dismiss() }.buttonStyle(PrimaryButtonStyle())
-            } else {
-                Text("자녀분께 이 화면을 보여 주세요").font(.system(size: 28, weight: .bold)).multilineTextAlignment(.center)
-                if let pairing, let image = qrImage(pairing.qrPayload) {
-                    Image(uiImage: image).interpolation(.none).resizable().scaledToFit()
-                        .frame(maxWidth: 300).padding(16).background(.white, in: RoundedRectangle(cornerRadius: 20))
-                        .accessibilityLabel("보호자 등록 QR 코드")
-                    // 카메라가 어려우면 숫자로 입력(두 OS 공통)
-                    Text(pairing.code.map { String($0) }.joined(separator: " "))
-                        .font(.system(size: 34, weight: .heavy, design: .monospaced)).foregroundStyle(Theme.green)
-                        .accessibilityLabel("연결 번호 \(pairing.code.map { String($0) }.joined(separator: " "))")
-                    Text("\(remaining / 60)분 \(remaining % 60)초 남았어요").foregroundStyle(Theme.muted)
-                } else if let error {
-                    Text(error).foregroundStyle(Theme.error)
-                } else { ProgressView() }
-                Spacer()
-                if remaining == 0 { Button("다시 만들기") { Task { await load() } }.buttonStyle(PrimaryButtonStyle()) }
-                Button("닫기") { dismiss() }.buttonStyle(SecondaryButtonStyle())
-            }
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .background(Theme.background)
-        .task { await load() }
-        .task {
-            // 연결 완료 감지: 푸시(pairing_done) 또는 10초 폴링(app_spec 2.1)
-            let before = (try? await app.api.links().count) ?? 0
-            while !Task.isCancelled && !linked {
-                try? await Task.sleep(for: .seconds(10))
-                if let now = try? await app.api.links().count, now > before { linked = true }
-            }
-        }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                if let p = pairing { remaining = max(0, Int(p.expiresAt.timeIntervalSinceNow)) }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .pairingDone)) { _ in linked = true }
+/// 연결 코드 1회분. QR과 6자리 번호는 같은 코드(서버 qr_payload). 연결되면 P05, 만료되면 P06.
+@Observable @MainActor
+final class PairingSession {
+    var pairing: PairingCode?
+    var error: String?
+    var linked = false
+    @ObservationIgnored private var watcher: Task<Void, Never>?
+
+    var expired: Bool { pairing.map { $0.expiresAt <= .now } ?? false }
+
+    func ensureCode(api: APIClient) async {
+        if pairing == nil || expired { await renew(api: api) }
     }
 
-    private func load() async {
-        do { pairing = try await app.api.pairingCode(); error = nil }
+    func renew(api: APIClient) async {
+        do { pairing = try await api.pairingCode(); error = nil }
         catch let e as APIError where e.code == "consent_required" { error = "먼저 보호자 공유 동의가 필요해요." }
         catch { self.error = "지금은 연결이 어려워요. 잠시 후 다시 해 주세요." }
     }
 
-    private func qrImage(_ text: String) -> UIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(text.utf8)
-        filter.correctionLevel = "M"
-        guard let out = filter.outputImage?.transformed(by: .init(scaleX: 10, y: 10)),
-              let cg = CIContext().createCGImage(out, from: out.extent) else { return nil }
-        return UIImage(cgImage: cg)
+    /// P02·P03에 있는 동안: 5초마다 연결 확인(푸시 pairing_done은 보조), 만료 확인.
+    func watch(api: APIClient, router: SeniorRouter, onLinked: @escaping () -> Void) {
+        watcher?.cancel()
+        watcher = Task { [weak self] in
+            let before = (try? await api.links().count) ?? 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self, !Task.isCancelled else { return }
+                if let now = try? await api.links().count, now > before { self.finish(router: router, onLinked: onLinked); return }
+                if self.expired { router.replace(.pairExpired); return }
+            }
+        }
     }
+
+    func finish(router: SeniorRouter, onLinked: () -> Void) {
+        watcher?.cancel()
+        linked = true
+        pairing = nil
+        onLinked()
+        router.replace(.pairDone)
+    }
+
+    func stop() { watcher?.cancel() }
+}
+
+/// P01 · 보호자 휴대폰에서 이 QR이나 번호를 확인해요.
+struct PairMenuView: View {
+    @Environment(AppState.self) private var app
+    @Environment(SeniorRouter.self) private var router
+    @Environment(PairingSession.self) private var pairing
+
+    var body: some View {
+        SeniorScaffold(onBack: { router.pop() }) {
+            SpeechBubble(text: "보호자 휴대폰에서\n이 QR이나 번호를\n확인해요.")
+            SmallBird(size: 120).padding(.top, 14)
+            VStack(spacing: 12) {
+                SeniorMenuRow(title: "QR코드 보여주기", detail: "보호자가 카메라로 읽어요") { router.push(.pairQR) }
+                SeniorMenuRow(title: "인증번호 보여주기", detail: "보호자가 번호를 입력해요") { router.push(.pairCode) }
+            }
+            .padding(.top, 18)
+            if let e = pairing.error { Text(e).font(.system(size: 18)).foregroundStyle(Theme.error).padding(.top, 12) }
+        } bottom: {
+            Button("홈으로 가기") { router.home() }.buttonStyle(SecondaryButtonStyle())
+        }
+        .task { await pairing.ensureCode(api: app.api) }
+        .onAppear { Narrator.shared.say("보호자 휴대폰에서 이 QR이나 번호를 확인해요.") }
+    }
+}
+
+/// P02 · 보호자 휴대폰으로 이 QR을 읽어 주세요.
+struct PairQRView: View {
+    @Environment(AppState.self) private var app
+    @Environment(SeniorRouter.self) private var router
+    @Environment(PairingSession.self) private var pairing
+
+    var body: some View {
+        SeniorScaffold(onBack: { pairing.stop(); router.pop() }) {
+            SpeechBubble(text: "보호자 휴대폰으로\n이 QR을 읽어 주세요.")
+            Group {
+                if let p = pairing.pairing, let image = qrImage(p.qrPayload) {
+                    Image(uiImage: image).interpolation(.none).resizable().scaledToFit()
+                        .padding(18).background(.white, in: RoundedRectangle(cornerRadius: 22))
+                        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.cardBorder))
+                        .accessibilityLabel("보호자 연결 QR 코드")
+                } else if let e = pairing.error {
+                    Text(e).font(.system(size: 19)).foregroundStyle(Theme.error)
+                } else { ProgressView().frame(height: 260) }
+            }
+            .frame(maxWidth: 300).padding(.top, 28)
+        } bottom: {
+            Button("인증번호 보여줘") { router.replace(.pairCode) }.buttonStyle(PrimaryButtonStyle())
+        }
+        .task {
+            await pairing.ensureCode(api: app.api)
+            pairing.watch(api: app.api, router: router) { app.hasGuardian = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pairingDone)) { _ in pairing.finish(router: router) { app.hasGuardian = true } }
+        .onAppear { Narrator.shared.say("보호자 휴대폰으로 이 QR을 읽어 주세요.") }
+    }
+}
+
+/// P03 · 보호자 휴대폰에 이 번호를 입력해 주세요. (QR이 어려울 때의 대체 수단)
+struct PairCodeView: View {
+    @Environment(AppState.self) private var app
+    @Environment(SeniorRouter.self) private var router
+    @Environment(PairingSession.self) private var pairing
+
+    var body: some View {
+        SeniorScaffold(onBack: { pairing.stop(); router.pop() }) {
+            SpeechBubble(text: "보호자 휴대폰에\n이 번호를 입력해 주세요.")
+            SmallBird(size: 110).padding(.top, 14)
+            SeniorCard {
+                Text("보호자 연결 인증번호").font(.system(size: 19, weight: .semibold)).foregroundStyle(Theme.muted)
+                Text(spaced(pairing.pairing?.code))
+                    .font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(Theme.green)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("인증번호 \(pairing.pairing?.code.map { String($0) }.joined(separator: " ") ?? "")")
+            }
+            .padding(.top, 18)
+            if let e = pairing.error { Text(e).font(.system(size: 18)).foregroundStyle(Theme.error).padding(.top, 12) }
+        } bottom: {
+            Button("QR 보여줘") { router.replace(.pairQR) }.buttonStyle(PrimaryButtonStyle())
+            Button("홈으로 가기") { pairing.stop(); router.home() }.buttonStyle(SecondaryButtonStyle())
+        }
+        .task {
+            await pairing.ensureCode(api: app.api)
+            pairing.watch(api: app.api, router: router) { app.hasGuardian = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pairingDone)) { _ in pairing.finish(router: router) { app.hasGuardian = true } }
+        .onAppear {
+            let code = pairing.pairing?.code.map { String($0) }.joined(separator: " ") ?? ""
+            Narrator.shared.say("보호자 휴대폰에 이 번호를 입력해 주세요. \(code)")
+        }
+    }
+
+    private func spaced(_ code: String?) -> String {
+        guard let code, code.count == 6 else { return "— — —" }
+        return "\(code.prefix(3)) \(code.suffix(3))"
+    }
+}
+
+/// P05 · 보호자와 연결됐어요.
+struct PairDoneView: View {
+    @Environment(SeniorRouter.self) private var router
+    @State private var bird = BirdModel()
+
+    var body: some View {
+        SeniorScaffold {
+            SpeechBubble(text: "보호자와 연결됐어요")
+            BirdView(model: bird).frame(width: 170, height: 170).padding(.top, 18).accessibilityHidden(true)
+            Text("이제 가족과 함께\n안부를 살펴볼 수 있어요.")
+                .font(.system(size: 22, weight: .semibold)).multilineTextAlignment(.center).padding(.top, 16)
+        } bottom: {
+            Button("기억이와 이야기하기") { router.home() }.buttonStyle(PrimaryButtonStyle())
+        }
+        .onAppear { bird.setExpression(.happy); Narrator.shared.say("보호자와 연결됐어요. 이제 가족과 함께 안부를 살펴볼 수 있어요.") }
+    }
+}
+
+/// P06 · 새 번호를 보여드릴게요. (코드 5분 만료)
+struct PairExpiredView: View {
+    @Environment(AppState.self) private var app
+    @Environment(SeniorRouter.self) private var router
+    @Environment(PairingSession.self) private var pairing
+
+    var body: some View {
+        SeniorScaffold(onBack: { router.pop() }) {
+            SpeechBubble(text: "새 번호를\n보여드릴게요.")
+            SmallBird(size: 130).padding(.top, 14)
+            Text("보호자에게 새 QR이나\n인증번호를 보여 주세요.")
+                .font(.system(size: 21)).multilineTextAlignment(.center).padding(.top, 16)
+        } bottom: {
+            Button("새 번호 보여줘") { Task { await pairing.renew(api: app.api); router.replace(.pairCode) } }
+                .buttonStyle(PrimaryButtonStyle())
+            Button("QR 보여줘") { Task { await pairing.renew(api: app.api); router.replace(.pairQR) } }
+                .buttonStyle(SecondaryButtonStyle())
+        }
+        .onAppear { Narrator.shared.say("시간이 지나 새 번호를 보여드릴게요.") }
+    }
+}
+
+func qrImage(_ text: String) -> UIImage? {
+    let filter = CIFilter.qrCodeGenerator()
+    filter.message = Data(text.utf8)
+    filter.correctionLevel = "M"
+    guard let out = filter.outputImage?.transformed(by: .init(scaleX: 10, y: 10)),
+          let cg = CIContext().createCGImage(out, from: out.extent) else { return nil }
+    return UIImage(cgImage: cg)
 }

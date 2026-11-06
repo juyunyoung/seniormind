@@ -26,12 +26,14 @@ public class UserController {
         this.users = users; this.consents = consents; this.db = db;
     }
 
-    public record UserUpsert(String role, String displayName, String timezone, Map<String, Object> notificationPrefs) {}
+    public record UserUpsert(String role, String displayName, String timezone, Map<String, Object> notificationPrefs,
+                             Integer birthYear, String speechRate) {}
 
     @PostMapping("/users/me")
     public Map<String, Object> upsertMe(HttpServletRequest req, @RequestBody UserUpsert body) {
         CurrentUser me = CurrentUser.of(req);
-        return users.upsert(me.uid(), me.authProvider(), body.role(), body.displayName(), body.timezone(), body.notificationPrefs());
+        return users.upsert(me.uid(), me.authProvider(), body.role(), body.displayName(), body.timezone(), body.notificationPrefs(),
+                body.birthYear(), body.speechRate());
     }
 
     @GetMapping("/users/me")

@@ -1,27 +1,124 @@
 import SwiftUI
 import AVFoundation
 
-/// E00 역할 선택(공통). 어르신과 보호자가 다른 OS를 써도 같은 서버 계정 체계.
+/// A01 · 누가 사용하시나요? (공통)
 struct RoleSelectView: View {
     @Environment(AppState.self) private var app
-    @State private var bird = BirdModel()
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            BirdView(model: bird).frame(width: 200).accessibilityHidden(true)
-            Text("기억의 캡슐").font(.system(size: 32, weight: .heavy)).foregroundStyle(Theme.green)
-            Text("누가 사용하시나요?").font(.title2).foregroundStyle(Theme.muted)
-            VStack(spacing: 12) {
-                Button("제가 기억이와 이야기할래요") { app.choose(.senior) }.buttonStyle(PrimaryButtonStyle())
-                Button("가족·보호자예요") { app.choose(.guardian) }.buttonStyle(SecondaryButtonStyle())
+        VStack(spacing: 0) {
+            Rectangle().fill(Theme.line).frame(height: 1).padding(.horizontal, 20).padding(.top, 56)
+            Text("누가 사용하시나요?")
+                .font(.system(size: 30, weight: .heavy))
+                .padding(.top, 56).padding(.bottom, 44)
+            VStack(spacing: 20) {
+                roleCard("시니어로 시작", "기억이와 편하게 대화해요") { app.choose(.senior) }
+                roleCard("보호자로 시작", "가족의 안부를 살펴봐요") { app.choose(.guardian) }
             }
+            .padding(.horizontal, 20)
             Spacer()
-            Text("기억이는 AI 말벗이에요.").font(.footnote).foregroundStyle(Theme.muted)
+            Text("기억이는 AI 말벗이에요.").font(.system(size: 15)).foregroundStyle(Theme.muted).padding(.bottom, 16)
         }
-        .padding(24)
         .frame(maxWidth: .infinity)
-        .background(Theme.background)
+        .background(Theme.startBackground)
+        .foregroundStyle(Theme.text)
+    }
+
+    private func roleCard(_ title: String, _ detail: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(title).font(.system(size: 27, weight: .bold))
+                    Text(detail).font(.system(size: 19)).foregroundStyle(Theme.muted)
+                }
+                Spacer()
+                Text("›").font(.system(size: 26, weight: .semibold))
+            }
+            .padding(.horizontal, 24).padding(.vertical, 34)
+            .background(.white, in: RoundedRectangle(cornerRadius: 30))
+            .overlay(RoundedRectangle(cornerRadius: 30).stroke(Theme.cardBorder))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// C01 · 대화 시작 동의(시니어). 홈 화면 위에 뜨는 확인 창.
+/// 확인하면 대화에 필요한 동의 3종(목소리 전송·대화 보관·기억 카드)을 기록하고 마이크 권한(C02)을 묻는다.
+/// 문구는 자리 표시용(작업 목록 L13 확정 후 교체, version "draft").
+struct SeniorConsentView: View {
+    @Environment(AppState.self) private var app
+    @State private var checked = false
+    @State private var showNotice = false
+    @State private var busy = false
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Theme.background.ignoresSafeArea()
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 18) {
+                Text("기억캡슐").font(.system(size: 16)).foregroundStyle(Theme.muted)
+                Text("대화 시작 동의").font(.system(size: 28, weight: .bold))
+                Text("기억이는 AI 말벗이에요.\n개인정보 처리 안내를 확인하고\n대화를 시작해 주세요.")
+                    .font(.system(size: 20)).lineSpacing(5)
+                Button("개인정보 처리 안내 보기") { showNotice = true }
+                    .font(.system(size: 19, weight: .bold)).underline().foregroundStyle(Theme.green)
+                Button { checked.toggle() } label: {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: checked ? "checkmark.square.fill" : "square")
+                            .font(.system(size: 28)).foregroundStyle(checked ? Theme.green : Theme.muted)
+                        Text("개인정보 처리 안내를 확인했어요").font(.system(size: 19)).multilineTextAlignment(.leading)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(checked ? .isSelected : [])
+                VStack(spacing: 12) {
+                    Button("확인하고 시작") { accept() }.buttonStyle(PrimaryButtonStyle()).disabled(!checked || busy)
+                    Button("나중에") { app.backToRoleSelect() }.buttonStyle(SecondaryButtonStyle())
+                }
+                .padding(.top, 6)
+            }
+            .padding(24)
+            .background(.white, in: RoundedRectangle(cornerRadius: 30))
+            .padding(.horizontal, 14).padding(.bottom, 24)
+            .foregroundStyle(Theme.text)
+        }
+        .sheet(isPresented: $showNotice) { PrivacyNoticeView() }
+    }
+
+    private func accept() {
+        busy = true
+        Task { await app.seniorConsentAccepted(); busy = false }
+    }
+}
+
+/// 개인정보 처리 안내(자리 표시 문구, L13 확정본으로 교체).
+struct PrivacyNoticeView: View {
+    @Environment(\.dismiss) private var dismiss
+    private let items: [(String, String)] = [
+        ("목소리 전송", "말씀하신 목소리는 인터넷으로 AI에 전송되어 대답을 만들어요. 녹음 파일로 저장하지 않아요."),
+        ("대화 내용 보관", "대화 내용(글자)은 7일, 기분 판단 결과는 90일 동안만 보관해요. 보호자에게 대화 원문은 보이지 않아요."),
+        ("기억 카드", "들려주신 이야기를 기억 카드로 남겨 다음 대화에서 이어가요. \"그 얘기는 잊어줘\"라고 하시면 지워요."),
+        ("철회", "설정·도움 화면에서 언제든 동의를 거둘 수 있어요."),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    ForEach(items.indices, id: \.self) { i in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(items[i].0).font(.system(size: 22, weight: .bold))
+                            Text(items[i].1).font(.system(size: 19)).lineSpacing(5)
+                        }
+                    }
+                }
+                .padding(24)
+            }
+            .navigationTitle("개인정보 처리 안내")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() } } }
+        }
     }
 }
 

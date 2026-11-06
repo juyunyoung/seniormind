@@ -34,29 +34,10 @@ struct RootView: View {
     var body: some View {
         switch app.phase {
         case .roleSelect: RoleSelectView()
+        case .consent(.senior): SeniorConsentView()
         case .consent(let role): ConsentFlowView(role: role)
         case .senior: SeniorRootView()
         case .guardian: GuardianHomeView()
-        }
-    }
-}
-
-/// 어르신 화면: 첫 실행 이름(S01) → 권한 안내 → 대화(S01·S02·S04). 알람이 울리면 알람 화면을 위에 띄운다.
-struct SeniorRootView: View {
-    @Environment(AppState.self) private var app
-    @State private var model: ConversationViewModel?
-
-    var body: some View {
-        @Bindable var app = app
-        Group {
-            if !app.nameAsked { NameEntryView() }
-            else if !app.permissionsAsked { PermissionPrimerView() }
-            else if let model { ConversationView(model: model) }
-            else { Theme.background }
-        }
-        .onAppear { if model == nil { model = ConversationViewModel(api: app.api, voice: app.makeLiveVoice()) } }
-        .fullScreenCover(item: $app.ringing) { alarm in
-            AlarmRingView(alarm: alarm) { app.ringing = nil }
         }
     }
 }
