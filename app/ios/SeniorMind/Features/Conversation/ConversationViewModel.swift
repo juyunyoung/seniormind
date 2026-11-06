@@ -1,10 +1,18 @@
 import Foundation
 import Observation
+import AVFoundation
 
 /// 대화 화면(S01 대기·S02 대화 중·S04 답변) 상태. 팀 문서 앱 계획서 1.2~1.7.
 @Observable @MainActor
 final class ConversationViewModel {
     // 화면 값(PoC index.html의 id와 대응)
+    /// 와이어프레임 단계: S01 홈 · S02 듣는 중 · S03 잠시만 기다려 주세요 · S04 기억이 답변 · S05 연결 다시 확인
+    enum Stage: Equatable { case home, listening, waiting, answering, error }
+    var stage: Stage = .home
+    /// 대화 시작 전 마이크 권한이 없으면 C03으로 보낸다.
+    @ObservationIgnored var onMicDenied: () -> Void = {}
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
+
     var assistantText = "오늘 어떠셨어요?"                  // 말풍선(기억이)
     var callerText = ""                                       // 어르신 자막
     var statusText = "버튼을 누르고 편하게 말씀해 주세요." 
@@ -104,6 +112,13 @@ final class ConversationViewModel {
     // MARK: - 연결
 
     func connect() {
+        guard AVAudioApplication.shared.recordPermission == .granted else {
+            if AVAudioApplication.shared.recordPermission == .undetermined {
+                Task { if await AVAudioApplication.requestRecordPermission() { self.connect() } else { self.onMicDenied() } }
+            } else { onMicDenied() }
+            return
+        }
+        stage = .waiting
         clearPreview(); motion.reset(); pose(.neutral)
         inputParts = []; outputParts = []; transcriptLog = []; turnSeq = 0
         assistantText = ""; callerText = ""; usageSeconds = nil; usageFinal = false; stats = .init()
@@ -114,12 +129,18 @@ final class ConversationViewModel {
 
     func end() { voice.stop() }
 
+    /// S03 "다시 말할래": 기다리던 응답을 두고 다시 듣는 화면으로.
+    func listenAgain() { stage = .listening }
+    /// S05 "홈으로 가기"
+    func goHome() { stage = .home; isError = false }
+
     private func apply(_ s: LiveState) {
         state = s
         isError = false
         switch s {
         case .connecting: notice = nil; statusText = "마이크와 목소리를 연결하고 있어요."
         case .active:
+            stage = .listening
             statusText = "연결됐어요. 편하게 말씀해 주세요."
             if let id = voice.sessionId {
                 queue = DecisionQueue(api: api, sessionId: id, batchMs: batchMs,
@@ -129,9 +150,11 @@ final class ConversationViewModel {
         case .closing: statusText = "대화를 마무리하고 있어요."; queue?.stop(); motion.stop()
         case .ended(let detail):
             statusText = detail ?? "대화를 마쳤어요."
+            stage = .home
             finishSession(reason: "user")
         case .error(let message):
             isError = true; statusText = message
+            stage = .error
             finishSession(reason: "error")
         case .idle: break
         }
@@ -159,12 +182,14 @@ final class ConversationViewModel {
             inputParts.sort { $0.start < $1.start }
             if inputParts.count > 160 { inputParts.removeFirst(inputParts.count - 160) }
             callerText = currentTurn()
+            stage = .listening
             statusText = "말씀에 귀 기울이고 있어요."
             queue?.push(input: inputText(), output: outputText())
         case .inputDone(let start, let end):
             turnSeq += 1
             let uid = "u_\(String(format: "%04d", turnSeq))"
             let text = currentTurn()
+            stage = .waiting
             transcriptLog.append(.init(direction: "input", utteranceId: uid, text: text, startMs: start, endMs: end))
             queue?.pushFinal(input: inputText(), output: outputText(),
                              utterance: .init(text: text, startMs: start, endMs: end), utteranceId: uid)
@@ -174,6 +199,13 @@ final class ConversationViewModel {
             assistantText = outputParts.filter { $0.start >= (outputParts.last?.start ?? 0) - 15000 }.map(\.text).joined()
             transcriptLog.append(.init(direction: "output", utteranceId: nil, text: text, startMs: start, endMs: start))
             statusText = "기억이가 이야기하고 있어요."
+            stage = .answering
+            idleTask?.cancel()
+            idleTask = Task { [weak self] in   // 말이 1.8초 끊기면 다시 듣는 화면
+                try? await Task.sleep(for: .milliseconds(1800))
+                guard let self, !Task.isCancelled, self.stage == .answering, self.busy else { return }
+                self.stage = .listening; self.callerText = ""
+            }
         case .delegation:
             break  // 회상 중계(app_spec 1.5)는 P2에서 위임 방식 확정 후
         case .usage(let seconds, let final):

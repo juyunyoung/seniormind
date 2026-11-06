@@ -39,7 +39,7 @@ public class UserService {
 
     /** POST /users/me: role은 최초 1회만. notification_prefs는 보낸 키만 병합(백엔드 v0.4.3). */
     public Map<String, Object> upsert(String uid, String authProvider, String role, String displayName, String timezone,
-                                      Map<String, Object> notificationPrefs) {
+                                      Map<String, Object> notificationPrefs, Integer birthYear, String speechRate) {
         if (!"senior".equals(role) && !"guardian".equals(role)) throw ApiException.badRequest("invalid_role", "역할을 확인해 주세요.");
         Map<String, Object> existing = get(uid);
         if (existing != null && !role.equals(Docs.str(existing, "role"))) {
@@ -57,6 +57,13 @@ public class UserService {
         doc.put("auth_provider", authProvider);
         if (displayName != null) doc.put("display_name", displayName.strip());
         if (timezone != null) doc.put("timezone", Times.zone(timezone).getId());
+        if ("senior".equals(role)) {
+            // C04 나이(선택) → 출생 연도. 생애 시기 추정 보조(DB 정의 users.birth_year)
+            int year = java.time.Year.now().getValue();
+            if (birthYear != null && birthYear >= year - 120 && birthYear <= year - 40) doc.put("birth_year", birthYear);
+            // S13 말하는 속도: slow | normal → 다음 대화부터 지시문에 반영
+            if ("slow".equals(speechRate) || "normal".equals(speechRate)) doc.put("speech_rate", speechRate);
+        }
         if (notificationPrefs != null && "guardian".equals(role)) {
             Map<String, Object> prefs = new HashMap<>(existing == null ? Map.of() : Docs.map(existing, "notification_prefs"));
             prefs.putAll(notificationPrefs);
@@ -75,6 +82,7 @@ public class UserService {
         out.put("display_name", Docs.str(u, "display_name"));
         out.put("timezone", Docs.str(u, "timezone") == null ? Times.SEOUL.getId() : Docs.str(u, "timezone"));
         if ("guardian".equals(Docs.str(u, "role"))) out.put("notification_prefs", Docs.map(u, "notification_prefs"));
+        else out.put("speech_rate", Docs.str(u, "speech_rate") == null ? "normal" : Docs.str(u, "speech_rate"));
         return out;
     }
 

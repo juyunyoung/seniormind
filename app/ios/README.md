@@ -19,23 +19,29 @@ open SeniorMind.xcodeproj
 
 푸시 알림, 시간 민감 알림, Sign in with Apple, App Attest. 코드는 들어 있고 유료 전환 때 `Paid.entitlements`로 바꾸면 켜집니다(`docs/TODO.md` T2). AlarmKit 알람은 무료 계정에서도 됩니다.
 
-## 화면과 파일
+## 화면과 파일 (와이어프레임 사본 11/6 기준, 1단계: 시니어)
 
-| 화면(와이어프레임) | 모드 | 파일 |
-|---|---|---|
-| E00 역할 선택 | 공통 | `Features/Onboarding/OnboardingViews.swift` `RoleSelectView` |
-| 동의 화면 | 공통 | 같은 파일 `ConsentFlowView`, 문구 `ConsentStep`(버전 `draft`) |
-| S01 이름 입력(첫 실행) | 시니어 | `Features/Senior/SeniorFirstRunViews.swift` `NameEntryView` |
-| 권한 안내 | 시니어 | 같은 파일 `PermissionPrimerView` |
-| S01·S02·S04 대화 | 시니어 | `Features/Conversation/ConversationView.swift` |
-| R2 상담 번호 카드 | 시니어 | 같은 파일 `hotlineCard` |
-| 기억 제어 확인 | 시니어 | 같은 파일 `MemoryConfirmView`(대화 위 확인 창) |
-| R3 안전 화면 | 시니어 | `Features/Conversation/SafetyView.swift` |
-| 연결 실패 안내 | 시니어 | `ConversationView` 오류 상태(다시 연결·상담 번호) |
-| S08 설정·도움 | 시니어 | `Features/Senior/SeniorSettingsView.swift` |
-| P01 보호자 연결(QR·번호) | 시니어 | 같은 파일 `PairingQRView` |
-| 알람 화면 | 시니어 | `Features/Alarm/AlarmRingView.swift`, 예약 `AlarmScheduler.swift` |
-| 보호자 화면(G03·G04·G07·G12·G13) | 보호자 | `Features/Guardian/GuardianViews.swift` — 2차에서 다시 작업 |
+| 화면 | 파일 |
+|---|---|
+| A01 누가 사용하시나요? | `Features/Onboarding/OnboardingViews.swift` `RoleSelectView` |
+| C01 대화 시작 동의 · 개인정보 처리 안내 | 같은 파일 `SeniorConsentView`, `PrivacyNoticeView` |
+| C02 마이크 권한(시스템 팝업) · C03 마이크가 꺼져 있어요 | `AppState.seniorConsentAccepted`, `Features/Senior/SeniorFirstRunViews.swift` `MicOffView` |
+| C04 어떻게 불러드릴까요?(이름·나이) | 같은 파일 `NameEntryView` |
+| S01 홈 · S02 듣는 중 · S03 잠시만 기다려 주세요 · S04 기억이 답변 · S05 연결 다시 확인 | `Features/Conversation/ConversationView.swift`(단계는 `ConversationViewModel.stage`) |
+| S08 말로 조작하기 · S13 말하는 속도 | `Features/Senior/SeniorSettingsView.swift` |
+| P01 보여주세요 · P02 QR · P03 인증번호 · P05 연결됐어요 · P06 새 번호 | 같은 파일 `Pair*View`, `PairingSession` |
+| 화면 이동 | `Features/Senior/SeniorFlow.swift` `SeniorRouter`, `SeniorRootView` |
+| 공통 틀(이전·설정·도움, 말풍선, 카드) | `Features/Senior/SeniorComponents.swift` |
+| R2 번호 카드 · R3 안전 화면 · 기억 제어 확인 · 알람 화면 | `ConversationView.swift`, `SafetyView.swift`, `AlarmRingView.swift` |
+| 보호자 화면 | `Features/Guardian/GuardianViews.swift` — 2단계에서 와이어프레임대로 다시 작업 |
+
+**와이어프레임과 다르게 한 것**
+- 캐릭터는 결정된 아기 새를 씁니다(와이어프레임은 원형 자리 표시).
+- 보호자 연결은 부모님 폰의 QR(또는 같은 화면의 6자리 번호)로 바로 연결합니다. 어르신 승인 화면(P04)은 만들지 않습니다.
+- 대화 중 "대화 마치기" 버튼을 추가했습니다(음성 "그만할게"가 기본, 버튼은 대비용).
+- S08에 "연결된 보호자 · 동의 관리" 줄을 추가했습니다. 동의 철회 수단이 필요해서입니다.
+- 보호자 연결 전에 보호자 공유·일정 공유 동의 화면을 거칩니다(서버가 확인하는 동의).
+- 말하는 속도는 "천천히"를 고르면 기억이 지시문에 반영되고, 안내 음성도 조금 느려집니다.
 
 ## 캐릭터
 

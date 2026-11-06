@@ -67,6 +67,10 @@ struct UserUpsert: Codable, Sendable {
     var role: UserRole
     var displayName: String?
     var timezone: String
+    /// 시니어 C04 나이(선택) → 출생 연도. 없으면 보내지 않는다.
+    var birthYear: Int? = nil
+    /// 시니어 S13 말하는 속도: slow | normal
+    var speechRate: String? = nil
 }
 
 struct UserProfile: Codable, Sendable {

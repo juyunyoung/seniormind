@@ -1,53 +1,59 @@
 import SwiftUI
 
-/// 대화 화면: S01 대화 대기 · S02 대화 중 · S04 기억이의 답변(와이어프레임).
-/// 구성: 오른쪽 위 "설정·도움" → 말풍선(기억이) → 캐릭터 → 어르신 자막 → 버튼.
-/// R2는 화면 아래 상담 번호 카드, R3는 전체 안전 화면, 기억 제어는 대화 위 확인 창.
-/// 어르신 화면에는 감정·위험 상태를 표시하지 않는다. 개발 패널은 DEBUG 빌드에서만.
+/// 대화 화면(와이어프레임 S01~S05). 캐릭터는 결정된 아기 새(디자인의 원형 자리).
+/// - S01 홈: 말풍선 + 기억이. 기억이를 누르면 대화 시작.
+/// - S02 듣는 중: 말풍선 + "• 듣는 중" + 어르신 자막 상자.
+/// - S03 잠시만 기다려 주세요: "다시 말할래".
+/// - S04 기억이 답변: 큰 말풍선.
+/// - S05 연결을 다시 확인해요: "다시 이야기하기" / "홈으로 가기".
+/// R2는 아래 상담 번호 카드, R3는 전체 안전 화면, 기억 제어는 대화 위 확인 창(와이어프레임 없음, 명세 필수).
 struct ConversationView: View {
     @State var model: ConversationViewModel
+    let router: SeniorRouter
     @Environment(AppState.self) private var app
-    @State private var showSettings = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                topBar
-                SpeechBubble(text: model.assistantText.isEmpty ? " " : model.assistantText)
-                    .padding(.top, 8)
-                    .animation(.easeOut(duration: 0.2), value: model.assistantText)
+        SeniorScaffold(onSettings: { router.push(.settings) }, settingsDisabled: model.busy) {
+            SpeechBubble(text: bubbleText, size: model.stage == .answering ? 30 : 28)
+                .padding(.top, model.stage == .home ? 60 : 24)
+                .animation(.easeOut(duration: 0.2), value: bubbleText)
+            Button { if model.stage == .home { model.connect() } } label: {
                 BirdView(model: model.bird)
-                    .frame(maxWidth: 340)
-                    .padding(.top, 20)
-                    .background(alignment: .bottom) {
-                        Ellipse().fill(RadialGradient(colors: [Color(hex: 0x415F35, opacity: 0.12), .clear], center: .center, startRadius: 0, endRadius: 120))
-                            .frame(width: 220, height: 24).offset(y: -10)
-                    }
-                if !model.callerText.isEmpty { callerBox.padding(.top, 16) }
-                Text(model.statusText)
-                    .font(.title3)
-                    .foregroundStyle(model.isError ? Theme.error : Theme.muted)
-                    .multilineTextAlignment(.center)
-                    .frame(minHeight: 28)
-                    .padding(.top, 18).padding(.bottom, 14)
-                    .accessibilityAddTraits(.updatesFrequently)
-                actions
-                if model.isError { offlineHelp.padding(.top, 16) }
-                if model.showHotline, let phrase = model.safety, phrase.level == .r2 { hotlineCard(phrase).padding(.top, 20) }
-                if let notice = model.notice {
-                    Text(notice).font(.footnote).foregroundStyle(Theme.muted).padding(.top, 12)
-                }
-                #if DEBUG
-                DisclosureGroup("개발자 패널") { DeveloperPanel(model: model) }
-                    .padding(.top, 40).tint(Theme.muted)
-                #endif
+                    .frame(maxWidth: model.stage == .home || model.stage == .answering ? 300 : 220)
+                    .padding(.top, 16)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 48)
+            .buttonStyle(.plain)
+            .disabled(model.stage != .home)
+            .accessibilityLabel(model.stage == .home ? "기억이와 이야기 시작하기" : "기억이")
+            .accessibilityHint(model.stage == .home ? "두 번 누르면 대화를 시작해요" : "")
+
+            if model.stage == .listening {
+                Label("듣는 중", systemImage: "circle.fill")
+                    .labelStyle(DotLabelStyle())
+                    .font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.green)
+                    .padding(.top, 14)
+                    .accessibilityAddTraits(.updatesFrequently)
+                if !model.callerText.isEmpty { callerBox.padding(.top, 14) }
+            }
+            if model.showHotline, let phrase = model.safety, phrase.level == .r2 { hotlineCard(phrase).padding(.top, 20) }
+            #if DEBUG
+            DisclosureGroup("개발자 패널") { DeveloperPanel(model: model) }
+                .padding(.top, 40).tint(Theme.muted)
+            #endif
+        } bottom: {
+            switch model.stage {
+            case .waiting:
+                if model.state == .active { Button("다시 말할래") { model.listenAgain() }.buttonStyle(PrimaryButtonStyle()) }
+            case .error:
+                Button("다시 이야기하기") { model.connect() }.buttonStyle(PrimaryButtonStyle())
+                Button("홈으로 가기") { model.goHome() }.buttonStyle(SecondaryButtonStyle())
+            case .listening, .answering:
+                // 와이어프레임에는 없음: 음성 "그만할게"가 기본, 이 버튼은 대비용
+                Button("대화 마치기") { model.end() }.buttonStyle(SecondaryButtonStyle()).disabled(model.state == .closing)
+            case .home:
+                EmptyView()
+            }
         }
-        .background(Theme.background)
-        .foregroundStyle(Theme.text)
-        .sheet(isPresented: $showSettings) { SeniorSettingsView() }
         .sheet(isPresented: Binding(get: { model.memoryPrompt != nil }, set: { if !$0 { model.answerMemoryPrompt(false) } })) {
             MemoryConfirmView(control: model.memoryPrompt?.control ?? .none) { model.answerMemoryPrompt($0) }
                 .presentationDetents([.medium])
@@ -58,56 +64,27 @@ struct ConversationView: View {
                 SafetyView(phrase: phrase, guardianNotified: app.hasGuardian) { model.showSafetyScreen = false }
             }
         }
-        .onAppear {
-            if let name = app.displayName, !model.busy { model.assistantText = "\(name)님, 오늘 어떠셨어요?" }
-        }
+        .onAppear { model.onMicDenied = { router.push(.micOff) } }
     }
 
-    private var topBar: some View {
-        HStack {
-            Spacer()
-            Button { showSettings = true } label: {
-                Text("설정·도움").font(.headline).padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Theme.secondaryFill, in: Capsule())
-            }
-            .foregroundStyle(Theme.green)
-            .disabled(model.busy)
+    private var bubbleText: String {
+        switch model.stage {
+        case .home: return app.displayName.map { "\($0)님,\n오늘 어떠셨어요?" } ?? "오늘 어떠셨어요?"
+        case .waiting: return "잠시만 기다려 주세요"
+        case .error: return "답변을 가져오지 못했어요.\n인터넷 연결을\n확인하고 다시\n이야기해 주세요."
+        case .listening, .answering: return model.assistantText.isEmpty ? "오늘 어떠셨어요?" : model.assistantText
         }
-        .padding(.vertical, 16)
     }
 
     private var callerBox: some View {
         Text(model.callerText)
-            .font(.system(size: 22)).lineSpacing(5)
-            .foregroundStyle(Theme.caller)
+            .font(.system(size: 23, weight: .medium)).lineSpacing(6)
+            .foregroundStyle(Theme.text)
             .multilineTextAlignment(.center)
-            .padding(16)
-            .frame(maxWidth: 520)
-            .background(Theme.callerBox, in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Theme.line))
+            .padding(20)
+            .frame(maxWidth: .infinity)
+            .background(Theme.callerBox, in: RoundedRectangle(cornerRadius: 26))
             .accessibilityLabel("내가 한 말: \(model.callerText)")
-    }
-
-    private var actions: some View {
-        Group {
-            if model.busy {
-                Button("대화 마치기") { model.end() }
-                    .buttonStyle(SecondaryButtonStyle())
-                    .disabled(model.state == .closing)
-            } else {
-                Button(model.isError ? "다시 연결하기" : "기억이와 대화하기") { model.connect() }
-                    .buttonStyle(PrimaryButtonStyle())
-            }
-        }
-    }
-
-    /// 연결 실패 안내: 상담 번호 바로가기(앱 계획서 1.9).
-    private var offlineHelp: some View {
-        let hotline = ConfigStore.shared.current.safety.hotline
-        return Link(destination: URL(string: "tel://\(hotline.number.replacingOccurrences(of: "-", with: ""))")!) {
-            Label("\(hotline.name) \(hotline.number)", systemImage: "phone.fill").font(.headline)
-        }
-        .foregroundStyle(Theme.green)
     }
 
     /// R2: 안전 문구 + 문구에 딸린 번호 버튼. 대화는 계속된다.
@@ -129,6 +106,13 @@ struct ConversationView: View {
         }
         .padding(18)
         .background(Theme.selectedFill, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+/// "• 듣는 중" 점 표시.
+private struct DotLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 10) { configuration.icon.font(.system(size: 8)); configuration.title }
     }
 }
 
