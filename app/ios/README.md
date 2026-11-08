@@ -25,13 +25,13 @@ cd "$HOME/seniormind/app/ios" && xcodegen generate && open "$HOME/seniormind/app
 
 스크립트가 `Local.xcconfig` 수정·plist 확인·`xcodegen generate`·설정 확인까지 한 번에 합니다.
 ```bash
-"$HOME/seniormind/app/ios/scripts/switch_backend.sh" seniormind --plist "$HOME/Downloads/GoogleService-Info.plist"   # 처음 한 번(내 plist 넣기)
 "$HOME/seniormind/app/ios/scripts/switch_backend.sh" seniormind   # 내 백엔드(기본)
-"$HOME/seniormind/app/ios/scripts/switch_backend.sh" team    # 이현님 팀 서버(처음 한 번 --plist 필요)
+"$HOME/seniormind/app/ios/scripts/switch_backend.sh" team    # 이현님 팀 서버
 "$HOME/seniormind/app/ios/scripts/switch_backend.sh" mock    # 서버 없이 화면만
 ```
 - 다른 백엔드(개인 테스트 서버 등)는 이름을 정해 처음 한 번 정보를 넣습니다. 값은 `Local.xcconfig`에만 저장되고 저장소에는 올라가지 않습니다.
   `switch_backend.sh <이름> --url <서버 주소> --bundle <번들 ID> --project <Firebase 프로젝트 ID> --plist <plist 파일>`
+- plist는 다운로드·바탕화면·`$HOME/firebase-plists`·팀 앱 폴더 등에서 번들 ID·프로젝트 ID가 맞는 파일을 **자동으로 찾아** 복사합니다. 팀 ID가 비어 있으면 다른 앱 폴더의 `Local.xcconfig`에서 가져옵니다. 끝나면 Xcode를 엽니다(`--no-open`으로 끔).
 - plist의 번들 ID·프로젝트 ID가 맞지 않으면 아무것도 바꾸지 않고 멈춥니다.
 - 바꾼 뒤 Xcode에서 ⇧⌘K → 실행. 번들 ID가 다르면 기기에 따로 설치됩니다.
 

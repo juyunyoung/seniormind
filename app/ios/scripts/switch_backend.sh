@@ -89,13 +89,41 @@ check_plist() {
   fi
 }
 mkdir -p "$FIREBASE_DIR"
+# plist를 따로 주지 않았고 아직 없으면, 맥에서 자주 두는 곳을 뒤져 번들 ID·프로젝트 ID가 맞는 파일을 찾는다
+find_plist() {
+  local d f b p
+  for d in "$HOME/memory-capsule/ios/MemoryCapsule/Firebase" "$HOME/seniormind/app/ios/MemoryCapsule/Firebase" \
+           "$HOME/firebase-plists" "$HOME/memory-capsule/firebase" "$HOME/seniormind/firebase" "$HOME/Downloads" "$HOME/Desktop"; do
+    [ -d "$d" ] || continue
+    for f in "$d"/*.plist; do
+      [ -f "$f" ] || continue
+      b=$(/usr/libexec/PlistBuddy -c "Print :BUNDLE_ID" "$f" 2>/dev/null || true)
+      p=$(/usr/libexec/PlistBuddy -c "Print :PROJECT_ID" "$f" 2>/dev/null || true)
+      if [ "$b" = "$BUNDLE" ] && [ "$p" = "$PROJECT" ]; then echo "$f"; return 0; fi
+    done
+  done
+  return 1
+}
 if [ "$MOCK" = NO ]; then
-  if [ -n "$PLIST_SRC" ]; then check_plist "$PLIST_SRC" || exit 3; cp "$PLIST_SRC" "$PLIST"; echo "· plist 복사: $PLIST"; fi
-  [ -f "$PLIST" ] || { echo "! plist가 없어요: $PLIST"; echo "  \"$0\" $BACKEND --plist \"\$HOME/Downloads/GoogleService-Info.plist\""; exit 3; }
+  if [ -z "$PLIST_SRC" ] && [ ! -f "$PLIST" ]; then
+    PLIST_SRC="$(find_plist || true)"
+    [ -n "$PLIST_SRC" ] && echo "· plist를 찾았어요: $PLIST_SRC"
+  fi
+  if [ -n "$PLIST_SRC" ] && [ "$PLIST_SRC" != "$PLIST" ]; then check_plist "$PLIST_SRC" || exit 3; cp "$PLIST_SRC" "$PLIST"; echo "· plist 복사: $PLIST"; fi
+  [ -f "$PLIST" ] || { echo "! 번들 $BUNDLE · 프로젝트 $PROJECT 용 plist를 찾지 못했어요."; echo "  Firebase 콘솔에서 받아 다운로드 폴더에 두고 다시 실행하세요: https://console.firebase.google.com/project/$PROJECT/settings/general"; exit 3; }
   check_plist "$PLIST" || exit 3
 fi
 
 # 3) Local.xcconfig 바꾸기
+# 팀 ID가 비어 있으면 다른 앱 폴더의 Local.xcconfig에서 가져온다
+if [ -z "$(get_key MC_DEVELOPMENT_TEAM)" ]; then
+  for other in "$HOME/memory-capsule/ios/Config/Local.xcconfig" "$HOME/seniormind/app/ios/Config/Local.xcconfig"; do
+    [ "$other" = "$LOCAL" ] || [ ! -f "$other" ] && continue
+    t=$(grep -E '^[[:space:]]*MC_DEVELOPMENT_TEAM[[:space:]]*=' "$other" | tail -1 | sed -E 's/^[^=]*=[[:space:]]*//')
+    if [ -n "$t" ]; then set_key MC_DEVELOPMENT_TEAM "$t"; echo "· 팀 ID를 가져왔어요: $other"; break; fi
+  done
+  [ -n "$(get_key MC_DEVELOPMENT_TEAM)" ] || echo "! 팀 ID(MC_DEVELOPMENT_TEAM)가 비어 있어요. Xcode Signing에서 팀을 고르거나 $LOCAL 에 적어 주세요."
+fi
 set_key MC_USE_MOCK "$MOCK"
 set_key MC_BACKEND "$BACKEND"
 if [ "$BACKEND" != team ] || [ -n "$URL$BUNDLE_ARG$PROJECT_ARG" ]; then
