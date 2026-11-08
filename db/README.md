@@ -33,6 +33,6 @@
 
 ## 3. Firebase 콘솔에서 할 일
 
-- 프로젝트 설정 → 앱 추가 → iOS, 번들 ID `com.daljoalab.seniormind` → `GoogleService-Info.plist` 받아 `app/ios/SeniorMind/`에 둡니다. 저장소에는 올리지 않습니다.
+- 프로젝트 설정 → 앱 추가 → iOS, 번들 ID `com.daljoalab.seniormind` → `GoogleService-Info.plist`를 받아 `app/ios/MemoryCapsule/Firebase/GoogleService-Info-seniormind.plist`로 둡니다(`app/ios/scripts/switch_backend.sh seniormind --plist <파일>`). 저장소에는 올리지 않습니다.
 - Authentication → 로그인 방법: 익명, 이메일/비밀번호, Google 켜기. Apple은 유료 계정 전환 후.
 - App Check → iOS 앱에 디버그 토큰 등록(무료 계정 기간). 유료 전환 후 App Attest 등록.
