@@ -60,7 +60,14 @@ final class WebRTCLiveVoice: NSObject, LiveVoice {
             await waitIce(timeout: 10)
 
             guard let sdp = pc.localDescription?.sdp else { throw LiveError.message("마이크 연결 준비 시간이 초과됐어요.") }
-            let created = try await api.createSession(.init(sdp: sdp, client: .init(platform: "ios", appVersion: AppInfo.version)))
+            let request = SessionCreateRequest(sdp: sdp, client: .init(platform: "ios", appVersion: AppInfo.version))
+            let created: SessionCreateResponse
+            do { created = try await api.createSession(request) }
+            catch let e as APIError where e.code == "consent_required" {
+                // 기기에는 동의가 있는데 서버에 기록이 없을 때(동의 저장 실패) 한 번 다시 보내고 재시도
+                guard await AppState.shared.resyncSeniorConsents() else { throw e }
+                created = try await api.createSession(request)
+            }
             sessionId = created.session.id
             maxSeconds = created.session.maxSeconds
             try await setRemote(pc, RTCSessionDescription(type: .answer, sdp: created.transport.sdp))
@@ -71,7 +78,13 @@ final class WebRTCLiveVoice: NSObject, LiveVoice {
             })
         } catch {
             cleanup()
-            onState(.error((error as? LiveError)?.text ?? (error as? APIError)?.errorDescription ?? "지금은 연결이 어려워요. 잠시 후 다시 해 주세요."))
+            var text = (error as? LiveError)?.text ?? (error as? APIError)?.errorDescription ?? "지금은 연결이 어려워요. 잠시 후 다시 해 주세요."
+            #if DEBUG
+            print("[MC] 음성 연결 실패: \(error)")
+            if case .server(let status, let code, _)? = error as? APIError { text += " (\(status) \(code))" }
+            else if !(error is LiveError) { text += " (\(error.localizedDescription))" }
+            #endif
+            onState(.error(text))
         }
     }
 

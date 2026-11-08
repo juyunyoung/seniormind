@@ -93,13 +93,28 @@ final class AppState {
 
     /// C01 "확인하고 시작": 대화에 필요한 동의 3종 기록 → C02 마이크 권한 → C04로.
     func seniorConsentAccepted() async {
-        for type in [ConsentType.voiceTransfer, .transcriptStore, .memoryCard] {
-            defaults.set(true, forKey: "mc.consent.\(type.rawValue)")
-            try? await api.postConsent(.init(type: type, version: ConsentStep.version, granted: true,
-                                             method: "screen_tap", linkedSeniorId: nil))
-        }
+        for type in Self.seniorConsentTypes { defaults.set(true, forKey: "mc.consent.\(type.rawValue)") }
+        _ = try? await auth.signInSenior()          // 동의는 로그인된 계정에 기록돼야 한다
+        await resyncSeniorConsents()
         micDenied = !(await AVAudioApplication.requestRecordPermission())
         consentFinished(.senior)
+    }
+
+    static let seniorConsentTypes: [ConsentType] = [.voiceTransfer, .transcriptStore, .memoryCard]
+    private static let consentPendingKey = "mc.consent.pending_sync"
+
+    /// 기기에 동의로 기록된 어르신 동의를 서버에 다시 보낸다. 실패하면 다음 앱 시작·대화 시작 때 다시 시도.
+    @discardableResult
+    func resyncSeniorConsents() async -> Bool {
+        var ok = true
+        for type in Self.seniorConsentTypes where defaults.bool(forKey: "mc.consent.\(type.rawValue)") {
+            do {
+                try await api.postConsent(.init(type: type, version: ConsentStep.version, granted: true,
+                                                method: "screen_tap", linkedSeniorId: nil))
+            } catch { ok = false }
+        }
+        defaults.set(!ok, forKey: Self.consentPendingKey)
+        return ok
     }
 
     /// C01 "나중에": 역할 선택으로 돌아간다.
@@ -126,7 +141,10 @@ final class AppState {
         userId = profile?.userId
         await ConfigStore.shared.refresh(using: api)
         await registerDevice(fcmToken: PushTokenStore.token)
-        if role == .senior { await syncAlarms() }
+        if role == .senior {
+            if defaults.bool(forKey: Self.consentPendingKey) { await resyncSeniorConsents() }
+            await syncAlarms()
+        }
     }
 
     /// C04 이름·나이(선택) 저장. 나이는 출생 연도로 바꿔 보낸다. 이어서 알림 권한을 묻는다.

@@ -58,16 +58,39 @@ final class MockAuthService: AuthService, @unchecked Sendable {
 }
 
 #if canImport(FirebaseAuth)
+/// 익명 로그인을 한 번만 진행한다. 앱 시작·동의 저장·서버 호출이 동시에 부르면 같은 결과를 기다린다
+/// (동시에 두 번 부르면 익명 계정이 두 개 생겨 동의와 세션이 다른 계정에 기록되는 문제가 있었음).
+@MainActor
+enum AnonymousSignIn {
+    private static var task: Task<String, Error>?
+    static func run() async throws -> String {
+        if let user = Auth.auth().currentUser { return user.uid }
+        if let task { return try await task.value }
+        let t = Task { try await Auth.auth().signInAnonymously().user.uid }
+        task = t
+        defer { task = nil }
+        return try await t.value
+    }
+}
+
 /// Firebase 로그인. 어르신은 익명(backend 1.0), 보호자는 이메일·비밀번호.
 struct FirebaseAuthService: AuthService {
     static var isConfigured: Bool { FirebaseApp.app() != nil }
 
-    func signInSenior() async throws -> String {
-        if let user = Auth.auth().currentUser { return user.uid }
-        return try await Auth.auth().signInAnonymously().user.uid
-    }
+    func signInSenior() async throws -> String { try await AnonymousSignIn.run() }
     func idToken() async throws -> String {
-        guard let user = Auth.auth().currentUser else { throw APIError.notConfigured }
+        var user = Auth.auth().currentUser
+        // 앱 시작 때 익명 로그인이 실패했으면(네트워크·콘솔 설정) 어르신은 여기서 다시 시도한다
+        if user == nil, UserDefaults.standard.string(forKey: "mc.role") == UserRole.senior.rawValue {
+            do { _ = try await AnonymousSignIn.run(); user = Auth.auth().currentUser }
+            catch {
+                #if DEBUG
+                print("[MC] 익명 로그인 실패: \(error)")
+                #endif
+                throw APIError.server(status: 0, code: "auth_failed", message: "로그인하지 못했어요. Firebase 익명 로그인 설정을 확인해 주세요.")
+            }
+        }
+        guard let user else { throw APIError.notConfigured }
         return try await user.getIDToken()
     }
     func signInGuardian(email: String, password: String) async throws -> String {

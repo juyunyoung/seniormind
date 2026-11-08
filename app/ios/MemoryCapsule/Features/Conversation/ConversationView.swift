@@ -37,6 +37,10 @@ struct ConversationView: View {
             }
             if model.showHotline, let phrase = model.safety, phrase.level == .r2 { hotlineCard(phrase).padding(.top, 20) }
             #if DEBUG
+            if model.stage == .error {   // 개발용: 실제 원인(서버 코드·메시지)을 작게 보여 준다
+                Text("원인: \(model.statusText)\n서버: \(AppInfo.apiBaseURL.host() ?? "-") · \(AppInfo.backend)")
+                    .font(.footnote).foregroundStyle(Theme.muted).multilineTextAlignment(.center).padding(.top, 12)
+            }
             DisclosureGroup("개발자 패널") { DeveloperPanel(model: model) }
                 .padding(.top, 40).tint(Theme.muted)
             #endif
