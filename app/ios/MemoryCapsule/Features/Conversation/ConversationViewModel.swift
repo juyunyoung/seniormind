@@ -169,7 +169,19 @@ final class ConversationViewModel {
         let body = SessionEndRequest(endReason: reason, durationSec: duration, usage: .init(seconds: usageSeconds.map(Int.init)),
                                      transcript: currentTranscript())
         startedAt = nil
-        Task { [api] in try? await api.endSession(id: id, body) }  // 실패 시 재시도 큐는 P1 후반(app_spec 1.2)
+        Task { [api] in await Self.sendEnd(api: api, id: id, body) }
+    }
+
+    /// 세션 종료 전송. 팀 서버는 마지막 판단이 아직 처리 중이면 409(decision_in_progress), 바쁘면 503을 돌려준다.
+    /// 그때는 2·4·8초 뒤 같은 요청을 다시 보낸다(같은 세션 종료는 서버가 한 번만 처리). 그 밖의 오류는 다시 보내지 않는다.
+    private static func sendEnd(api: APIClient, id: String, _ body: SessionEndRequest) async {
+        for delay in [0, 2, 4, 8] {
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            do { try await api.endSession(id: id, body); return }
+            catch APIError.server(let status, _, _) where status == 409 || status == 503 { continue }
+            catch is URLError { continue }
+            catch { return }
+        }
     }
 
     // MARK: - 이벤트
@@ -194,10 +206,20 @@ final class ConversationViewModel {
             queue?.pushFinal(input: inputText(), output: outputText(),
                              utterance: .init(text: text, startMs: start, endMs: end), utteranceId: uid)
         case .outputDelta(let id, let text, let start):
-            if !outputParts.contains(where: { $0.id == id }) { outputParts.append((id, start, text)) }
+            let isNew = !outputParts.contains(where: { $0.id == id })
+            if isNew { outputParts.append((id, start, text)) }
             outputParts.sort { $0.start < $1.start }
             assistantText = outputParts.filter { $0.start >= (outputParts.last?.start ?? 0) - 15000 }.map(\.text).joined()
-            transcriptLog.append(.init(direction: "output", utteranceId: nil, text: text, startMs: start, endMs: start))
+            // 기억이 자막은 몇 글자씩 잘게 들어온다. 연달아 들어온 조각은 종료 자막에서 한 줄로 합친다
+            // (팀 서버 종료 API는 최대 2000줄, 조각마다 한 줄이면 금방 넘는다).
+            if isNew {
+                if let last = transcriptLog.indices.last, transcriptLog[last].direction == "output" {
+                    transcriptLog[last].text += text
+                    transcriptLog[last].endMs = max(transcriptLog[last].endMs, start)
+                } else {
+                    transcriptLog.append(.init(direction: "output", utteranceId: nil, text: text, startMs: start, endMs: start))
+                }
+            }
             statusText = "기억이가 이야기하고 있어요."
             stage = .answering
             idleTask?.cancel()

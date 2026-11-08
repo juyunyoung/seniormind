@@ -5,7 +5,7 @@ import FirebaseMessaging
 #endif
 
 @main
-struct SeniorMindApp: App {
+struct MemoryCapsuleApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var app = AppState.shared
     @Environment(\.scenePhase) private var scenePhase
@@ -37,16 +37,16 @@ struct RootView: View {
         case .consent(.senior): SeniorConsentView()
         case .consent(let role): ConsentFlowView(role: role)
         case .senior: SeniorRootView()
-        case .guardian: GuardianHomeView()
+        case .guardian: GuardianRootView()
         }
     }
 }
 
-/// QR·딥링크. iOS는 seniormind:// 를 쓰고, 팀 공통 형식 memorycapsule:// 도 읽는다(나중에 통일, docs/TODO.md).
+/// QR·딥링크. 두 OS 공통 형식(백엔드 6.3).
 /// 형식: <scheme>://pair?v=1&code=123456
 enum DeepLink {
     nonisolated(unsafe) static var pendingPairCode: String?
-    static let schemes: Set<String> = ["seniormind", "memorycapsule"]
+    static let schemes: Set<String> = ["memorycapsule"]
 
     static func parsePairCode(_ text: String) -> String? {
         if let comps = URLComponents(string: text), let scheme = comps.scheme, schemes.contains(scheme), comps.host == "pair",

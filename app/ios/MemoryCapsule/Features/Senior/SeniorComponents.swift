@@ -89,13 +89,15 @@ struct SeniorMenuRow: View {
     let title: String
     var detail: String? = nil
     var trailing: String? = "›"
+    /// 선택된 항목(S13 "보통 ✓"): 연초록 배경·초록 테두리·초록 글자
+    var selected = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(title).font(.system(size: 23, weight: .bold)).foregroundStyle(Theme.text)
+                    Text(title).font(.system(size: 23, weight: .bold)).foregroundStyle(selected ? Theme.green : Theme.text)
                     if let detail { Text(detail).font(.system(size: 18)).foregroundStyle(Theme.muted) }
                 }
                 Spacer(minLength: 8)
@@ -104,8 +106,8 @@ struct SeniorMenuRow: View {
             .multilineTextAlignment(.leading)
             .padding(.horizontal, 20).padding(.vertical, 20)
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Theme.cardBorder))
+            .background(selected ? Theme.bubble : .white, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(selected ? Theme.selectedBorder : Theme.cardBorder, lineWidth: selected ? 1.5 : 1))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

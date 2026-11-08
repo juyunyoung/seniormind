@@ -151,10 +151,9 @@ struct ConsentStep: Identifiable {
     ]
     /// 문구 버전. L13 확정 전까지 draft.
     static let version = "draft"
+    /// 보호자 가입 동의. guardian_data_view는 부모님을 확인한 뒤 G24에서 linked_senior_id와 함께 기록한다.
     static let guardian: [ConsentStep] = [
         .init(type: .guardianTerms, title: "보호자 이용 약관", body: "기억의 캡슐 보호자 이용 약관에 동의해 주세요.", required: true),
-        .init(type: .guardianDataView, title: "어르신 요약 정보 보기",
-              body: "연결한 어르신의 기분 요약·알림·일정 확인 기록을 봐요. 대화 원문은 보이지 않아요.", required: true),
         .init(type: .guardianScheduleManage, title: "일정 등록과 확인 기록",
               body: "어르신의 알림을 등록하고, 확인 기록을 볼 수 있어요. 복약 지도나 진단은 하지 않아요.", required: true),
     ]

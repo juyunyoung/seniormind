@@ -130,6 +130,14 @@ final class MockLiveVoice: LiveVoice {
 enum AppInfo {
     static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1" }
     static var useMock: Bool { (Bundle.main.object(forInfoDictionaryKey: "MC_USE_MOCK") as? String ?? "YES").uppercased() != "NO" }
+    /// 연결한 백엔드 이름(기본 team). Config의 MC_BACKEND
+    static var backend: String { Bundle.main.object(forInfoDictionaryKey: "MC_BACKEND") as? String ?? "team" }
+    /// 백엔드별 Firebase 설정 파일. MemoryCapsule/Firebase/<이름>.plist, 없으면 예전 위치의 GoogleService-Info.plist
+    static var firebasePlistPath: String? {
+        let name = Bundle.main.object(forInfoDictionaryKey: "MC_FIREBASE_PLIST") as? String ?? ""
+        return (name.isEmpty ? nil : Bundle.main.path(forResource: name, ofType: "plist"))
+            ?? Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+    }
     static var apiBaseURL: URL { URL(string: Bundle.main.object(forInfoDictionaryKey: "MC_API_BASE_URL") as? String ?? "") ?? URL(string: "https://example.invalid")! }
 }
 

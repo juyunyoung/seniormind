@@ -55,12 +55,14 @@ final class AppState {
 
         var appCheck: AppCheckService = NoAppCheck()
         #if canImport(FirebaseCore)
-        if !AppInfo.useMock, Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil, FirebaseApp.app() == nil {
+        // 백엔드(MC_BACKEND)에 맞는 Firebase 설정 파일로 시작한다(기본 team: memory-capsule-511111)
+        if !AppInfo.useMock, let path = AppInfo.firebasePlistPath, let options = FirebaseOptions(contentsOfFile: path),
+           FirebaseApp.app() == nil {
             #if canImport(FirebaseAppCheck)
             FirebaseAppCheckService.install()      // configure() 전에
             appCheck = FirebaseAppCheckService()
             #endif
-            FirebaseApp.configure()
+            FirebaseApp.configure(options: options)
         }
         #endif
         #if canImport(FirebaseAuth)
@@ -76,7 +78,7 @@ final class AppState {
 
         switch d.string(forKey: Keys.role).flatMap(UserRole.init(rawValue:)) {
         case .senior: phase = d.bool(forKey: Keys.consentDone(.senior)) ? .senior : .consent(.senior)
-        case .guardian: phase = d.bool(forKey: Keys.consentDone(.guardian)) ? .guardian : .consent(.guardian)
+        case .guardian: phase = .guardian      // 로그인·동의·연결 단계는 GuardianStore가 정한다
         case nil: phase = .roleSelect
         }
     }
@@ -85,7 +87,7 @@ final class AppState {
 
     func choose(_ role: UserRole) {
         defaults.set(role.rawValue, forKey: Keys.role)
-        phase = .consent(role)
+        phase = role == .senior ? .consent(.senior) : .guardian
         Task { await bootstrap() }
     }
 
@@ -117,8 +119,10 @@ final class AppState {
     func bootstrap() async {
         guard let role else { return }
         if role == .senior { _ = try? await auth.signInSenior() }
-        let profile = try? await api.upsertMe(.init(role: role, displayName: displayName, timezone: TimeZone.current.identifier,
-                                                    birthYear: birthYear, speechRate: role == .senior ? speechRate : nil))
+        else if !auth.hasGuardianSession { return }      // 보호자는 G01 로그인 뒤에
+        let name = role == .senior ? displayName : defaults.string(forKey: "mc.guardian.name")
+        let profile = try? await api.upsertMe(.init(role: role, displayName: name, timezone: TimeZone.current.identifier,
+                                                    birthYear: role == .senior ? birthYear : nil, speechRate: role == .senior ? speechRate : nil))
         userId = profile?.userId
         await ConfigStore.shared.refresh(using: api)
         await registerDevice(fcmToken: PushTokenStore.token)
@@ -176,9 +180,11 @@ final class AppState {
     /// 개발용: 처음 실행 상태로 되돌린다.
     func resetForDebug() {
         for key in [Keys.role, Keys.name, Keys.nameAsked, Keys.speechRate, Keys.birthYear, Keys.hasGuardian,
-                    Keys.consentDone(.senior), Keys.consentDone(.guardian), "mc.consent.guardianShare"] {
+                    Keys.consentDone(.senior), Keys.consentDone(.guardian), "mc.consent.guardianShare",
+                    "mc.guardian.name", "mc.guardian.prefs"] {
             defaults.removeObject(forKey: key)
         }
+        try? auth.signOut()
         displayName = nil; nameAsked = false; hasGuardian = false; micDenied = false; speechRate = "normal"; birthYear = nil
         phase = .roleSelect
     }

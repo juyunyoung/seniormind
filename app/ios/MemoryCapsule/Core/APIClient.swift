@@ -12,6 +12,7 @@ enum APIError: Error, LocalizedError {
         }
     }
     var code: String? { if case .server(_, let code, _) = self { code } else { nil } }
+    var status: Int? { if case .server(let status, _, _) = self { status } else { nil } }
 }
 
 /// 팀 문서 backend_spec v0.4.3의 API. Android 앱과 같은 계약.
@@ -31,6 +32,11 @@ protocol APIClient: Sendable {
     func links() async throws -> [GuardianLink]
     func unlink(linkId: String) async throws
     func board(seniorId: String) async throws -> Board
+    /// N21 제안: QR·번호로 대상 어르신 확인(코드 소비 없음)
+    func resolvePairing(code: String) async throws -> PairingTarget
+    func alerts(seniorId: String) async throws -> [Board.AlertItem]
+    func markAlertRead(id: String) async throws
+    func alertFollowUp(id: String, status: String) async throws
 
     func schedules(seniorId: String) async throws -> [ScheduleItem]
     func saveSchedule(_ item: ScheduleItem) async throws -> ScheduleItem
@@ -101,6 +107,19 @@ struct HTTPAPIClient: APIClient {
     func links() async throws -> [GuardianLink] { try await get("guardian/links") }
     func unlink(linkId: String) async throws { try await send("DELETE", "guardian/link/\(linkId)", Optional<Empty>.none) }
     func board(seniorId: String) async throws -> Board { try await get("guardian/board/\(seniorId)") }
+    func resolvePairing(code: String) async throws -> PairingTarget {
+        struct B: Codable { var code: String }
+        return try await send("POST", "pairing/resolve", B(code: code))
+    }
+    func alerts(seniorId: String) async throws -> [Board.AlertItem] {
+        let id = seniorId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? seniorId
+        return try await get("guardian/alerts?senior_id=\(id)")
+    }
+    func markAlertRead(id: String) async throws { try await send("PATCH", "guardian/alerts/\(id)/read", Optional<Empty>.none) }
+    func alertFollowUp(id: String, status: String) async throws {
+        struct B: Codable { var status: String }
+        try await send("PATCH", "guardian/alerts/\(id)/follow-up", B(status: status))
+    }
 
     func schedules(seniorId: String) async throws -> [ScheduleItem] {
         let id = seniorId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? seniorId

@@ -71,6 +71,22 @@ struct UserUpsert: Codable, Sendable {
     var birthYear: Int? = nil
     /// 시니어 S13 말하는 속도: slow | normal
     var speechRate: String? = nil
+    /// 보호자 G18 신호 알림 설정(보낸 키만 병합)
+    var notificationPrefs: NotificationPrefs? = nil
+}
+
+/// 보호자 알림 설정(백엔드 1.0, users.notification_prefs). R3는 설정과 무관하게 항상 받는다.
+struct NotificationPrefs: Codable, Sendable, Equatable {
+    var riskMinLevel: String? = "R2"     // R2 | R3
+    var scheduleMissed: Bool? = true
+    var weeklyReport: Bool? = true
+}
+
+/// 보호자가 QR·번호로 연결 전에 대상 어르신을 확인(G24). 팀 서버 미구현 — 작업 목록 N21 제안 계약.
+struct PairingTarget: Codable, Sendable {
+    var seniorId: String
+    var displayName: String?
+    var expiresAt: Date?
 }
 
 struct UserProfile: Codable, Sendable {
@@ -240,7 +256,7 @@ struct MemoryControlRequest: Codable, Sendable {
 struct PairingCode: Codable, Sendable {
     var code: String
     var expiresAt: Date
-    /// 서버가 만든 QR 문자열. 예: seniormind://pair?v=1&code=123456 (팀 공통은 memorycapsule://, 나중에 통일)
+    /// 서버가 만든 QR 문자열. 예: memorycapsule://pair?v=1&code=123456 (두 OS 공통)
     var qrPayload: String
 }
 
@@ -268,7 +284,11 @@ struct ScheduleItem: Codable, Sendable, Identifiable, Hashable {
     var missedAfterMin: Int
     var active: Bool
     var updatedAt: Date?
+    /// G13 시작 날짜 "yyyy-MM-dd"(목 전용 확장, 명세에 없음). 반복 없음(rrule "NONE")이면 이 날 한 번만.
+    var startDate: String? = nil
     var id: String { scheduleId }
+
+    var isMedication: Bool { type == "medication" }
 }
 
 struct ScheduleAck: Codable, Sendable {
@@ -308,6 +328,13 @@ struct Board: Codable, Sendable {
     var alertsRecent: [AlertItem]
     var conversationTopics: [String]?         // "이야기 나눈 주제" 최대 3
     var deviceStatus: DeviceStatus?
+    /// G04 대화량: 최근 7일 날짜별 대화 수(목 전용 확장, 명세에 없음)
+    var conversationCounts7d: [DailyCount]? = nil
+    /// G06 관찰된 신호: 영역별 최근 7일 날짜별 관찰 수(목 전용 확장, 명세에 없음)
+    var signalCounts7d: [String: [DailyCount]]? = nil
+    var updatedAt: Date? = nil
+
+    struct DailyCount: Codable, Sendable, Identifiable, Hashable { var date: String; var count: Int; var id: String { date } }
 }
 
 /// 서버 공통 오류 형식 `{ "error": { "code", "message" } }`

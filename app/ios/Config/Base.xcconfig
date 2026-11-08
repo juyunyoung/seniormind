@@ -1,8 +1,29 @@
 // 기본값. 개인 값은 같은 폴더의 Local.xcconfig(저장소 제외)에서 덮어쓴다.
 // 무료 Apple 계정(Personal Team)에서도 빌드되도록 기본 권한 파일은 Free.
 MC_DEVELOPMENT_TEAM =
-MC_ENTITLEMENTS = SeniorMind/Entitlements/Free.entitlements
-MC_API_BASE_URL = https:/$()/example.invalid
+MC_ENTITLEMENTS = MemoryCapsule/Entitlements/Free.entitlements
 MC_USE_MOCK = YES
+
+// ── 연결할 백엔드 ─────────────────────────────────────────────
+// Local.xcconfig의 MC_BACKEND 한 줄로 바꾼다. 이 저장소(seniormind)의 기본은 seniormind(내 백엔드).
+// 바꾸기: "$HOME/seniormind/app/ios/scripts/switch_backend.sh" seniormind | team | mock
+MC_BACKEND = seniormind
+
+// seniormind: 내 백엔드 (GCP·Firebase seniormind-513700, 소스 이 저장소의 backend/)
+MC_API_BASE_URL_seniormind = https:/$()/seniormind-api-941156433529.asia-northeast3.run.app
+MC_BUNDLE_ID_seniormind = com.daljoalab.seniormind
+MC_FIREBASE_PLIST_seniormind = GoogleService-Info-seniormind
+MC_FIREBASE_PROJECT_seniormind = seniormind-513700
+
+// team: 이현님 팀 서버 (GCP·Firebase memory-capsule-511111, 소스 try-hackathon-study/memory-capsule-cloud)
+MC_API_BASE_URL_team = https:/$()/memory-capsule-dev-1021676267286.asia-northeast3.run.app
+MC_BUNDLE_ID_team = com.daljoalab.memorycapsule
+MC_FIREBASE_PLIST_team = GoogleService-Info-team
+MC_FIREBASE_PROJECT_team = memory-capsule-511111
+
+// 위에서 고른 백엔드의 값으로 정해진다(직접 고치지 않는다)
+MC_API_BASE_URL = $(MC_API_BASE_URL_$(MC_BACKEND))
+MC_BUNDLE_ID = $(MC_BUNDLE_ID_$(MC_BACKEND))
+MC_FIREBASE_PLIST = $(MC_FIREBASE_PLIST_$(MC_BACKEND))
 
 #include? "Local.xcconfig"

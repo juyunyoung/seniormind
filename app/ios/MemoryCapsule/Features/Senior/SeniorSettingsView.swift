@@ -57,7 +57,7 @@ struct SpeechRateView: View {
 
     private func option(_ title: String, value: String) -> some View {
         let selected = app.speechRate == value
-        return SeniorMenuRow(title: selected ? "\(title) ✓" : title, trailing: nil) {
+        return SeniorMenuRow(title: selected ? "\(title) ✓" : title, trailing: nil, selected: selected) {
             Task { await app.setSpeechRate(value); Narrator.shared.say("\(title)으로 말할게요.") }
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -222,7 +222,7 @@ struct PairQRView: View {
             }
             .frame(maxWidth: 300).padding(.top, 28)
         } bottom: {
-            Button("인증번호 보여줘") { router.replace(.pairCode) }.buttonStyle(PrimaryButtonStyle())
+            Button("인증번호 보여줘") { router.replace(.pairCode) }.buttonStyle(SecondaryButtonStyle())
         }
         .task {
             await pairing.ensureCode(api: app.api)
@@ -244,16 +244,17 @@ struct PairCodeView: View {
             SpeechBubble(text: "보호자 휴대폰에\n이 번호를 입력해 주세요.")
             SmallBird(size: 110).padding(.top, 14)
             SeniorCard {
-                Text("보호자 연결 인증번호").font(.system(size: 19, weight: .semibold)).foregroundStyle(Theme.muted)
+                Text("보호자 연결 인증번호").font(.system(size: 19, weight: .semibold))
+                    .frame(maxWidth: .infinity)
                 Text(spaced(pairing.pairing?.code))
-                    .font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(Theme.green)
+                    .font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(Theme.text)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel("인증번호 \(pairing.pairing?.code.map { String($0) }.joined(separator: " ") ?? "")")
             }
             .padding(.top, 18)
             if let e = pairing.error { Text(e).font(.system(size: 18)).foregroundStyle(Theme.error).padding(.top, 12) }
         } bottom: {
-            Button("QR 보여줘") { router.replace(.pairQR) }.buttonStyle(PrimaryButtonStyle())
+            Button("QR 보여줘") { router.replace(.pairQR) }.buttonStyle(SecondaryButtonStyle())
             Button("홈으로 가기") { pairing.stop(); router.home() }.buttonStyle(SecondaryButtonStyle())
         }
         .task {
@@ -280,10 +281,8 @@ struct PairDoneView: View {
 
     var body: some View {
         SeniorScaffold {
-            SpeechBubble(text: "보호자와 연결됐어요")
-            BirdView(model: bird).frame(width: 170, height: 170).padding(.top, 18).accessibilityHidden(true)
-            Text("이제 가족과 함께\n안부를 살펴볼 수 있어요.")
-                .font(.system(size: 22, weight: .semibold)).multilineTextAlignment(.center).padding(.top, 16)
+            SpeechBubble(text: "이제 가족과 함께\n안부를 살펴볼 수\n있어요.")
+            BirdView(model: bird).frame(width: 150, height: 150).padding(.top, 18).accessibilityHidden(true)
         } bottom: {
             Button("기억이와 이야기하기") { router.home() }.buttonStyle(PrimaryButtonStyle())
         }
@@ -299,10 +298,8 @@ struct PairExpiredView: View {
 
     var body: some View {
         SeniorScaffold(onBack: { router.pop() }) {
-            SpeechBubble(text: "새 번호를\n보여드릴게요.")
+            SpeechBubble(text: "새 번호를\n보여드릴게요.\n보호자에게 새 QR이나\n인증번호를 보여\n주세요.")
             SmallBird(size: 130).padding(.top, 14)
-            Text("보호자에게 새 QR이나\n인증번호를 보여 주세요.")
-                .font(.system(size: 21)).multilineTextAlignment(.center).padding(.top, 16)
         } bottom: {
             Button("새 번호 보여줘") { Task { await pairing.renew(api: app.api); router.replace(.pairCode) } }
                 .buttonStyle(PrimaryButtonStyle())

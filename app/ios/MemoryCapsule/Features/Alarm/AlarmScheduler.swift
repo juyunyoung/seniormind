@@ -179,6 +179,14 @@ enum RRule {
         cal.timeZone = TimeZone(identifier: item.timezone) ?? .current   // 어르신 시간대 기준
         let hm = item.timeLocal.split(separator: ":").compactMap { Int($0) }
         guard hm.count == 2 else { return [] }
+        // 시작 날짜(G13, 목 전용 확장): 그 전 날짜는 건너뛴다. 반복 없음("NONE")이면 그날 한 번만.
+        let fmt = DateFormatter(); fmt.calendar = cal; fmt.timeZone = cal.timeZone; fmt.dateFormat = "yyyy-MM-dd"
+        let startDay = item.startDate.flatMap { fmt.date(from: $0) }
+        if item.rrule == "NONE" {
+            guard let startDay, let d = cal.date(bySettingHour: hm[0], minute: hm[1], second: 0, of: startDay),
+                  d >= from.addingTimeInterval(-3600 * 3), d <= to else { return [] }
+            return [d]
+        }
         let parts = Dictionary(uniqueKeysWithValues: item.rrule.split(separator: ";").compactMap { p -> (String, String)? in
             let kv = p.split(separator: "=", maxSplits: 1); return kv.count == 2 ? (String(kv[0]), String(kv[1])) : nil })
         let days: Set<Int>? = parts["BYDAY"].map { Set($0.split(separator: ",").compactMap { weekday(String($0)) }) }
@@ -187,7 +195,7 @@ enum RRule {
         var result: [Date] = []
         var day = cal.startOfDay(for: from)
         while day <= to {
-            if days == nil || days!.contains(cal.component(.weekday, from: day)),
+            if (startDay == nil || day >= startDay!), days == nil || days!.contains(cal.component(.weekday, from: day)),
                let d = cal.date(bySettingHour: hm[0], minute: hm[1], second: 0, of: day), d >= from.addingTimeInterval(-3600 * 3), d <= to {
                 result.append(d)   // 초 0 = due_at 분 단위 정규화
             }
