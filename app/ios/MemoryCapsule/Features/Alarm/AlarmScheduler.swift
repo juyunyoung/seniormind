@@ -64,9 +64,10 @@ final class AlarmScheduler {
 
     private func schedule(item: ScheduleItem, dueAt: Date, fireAt: Date, reminder: Int) async throws -> UUID {
         let id = UUID()
-        // 확인 필요 일정만 "했어요"(ack 전송). 확인 불필요 일정은 "확인"으로 끄기만 한다(앱 계획서 2.4).
+        // 확인 필요 일정: 알람을 끄면 앱이 열리고 "했어요"를 누르는 확인 화면이 뜬다(확인은 그 화면에서 보낸다).
+        // 확인 불필요 일정은 "확인"으로 끄기만 한다(앱 계획서 2.4).
         let done = item.needsAck
-            ? AlarmButton(text: "했어요", textColor: .white, systemImageName: "checkmark.circle.fill")
+            ? AlarmButton(text: "확인하기", textColor: .white, systemImageName: "checkmark.circle.fill")
             : AlarmButton(text: "확인", textColor: .white, systemImageName: "xmark.circle.fill")
         let alert = AlarmPresentation.Alert(title: LocalizedStringResource(stringLiteral: item.title), stopButton: done)
         let meta = ScheduleAlarmMetadata(scheduleId: item.scheduleId, dueEpoch: Int(dueAt.timeIntervalSince1970), message: item.message)
@@ -86,13 +87,26 @@ final class AlarmScheduler {
 
     // MARK: - 앱 안 알람 화면
 
-    /// 15분 안에 울린 알람 중 아직 확인·표시하지 않은 것.
+    private func cachedItems() -> [ScheduleItem] {
+        guard let data = store.data(forKey: cacheKey) else { return [] }
+        return (try? JSONDecoder().decode([ScheduleItem].self, from: data)) ?? []
+    }
+
+    /// 알람을 끄고 들어왔을 때 보여 줄 확인 화면 내용(마지막으로 받은 일정에서 찾는다).
+    func ringingAlarm(scheduleId: String, dueEpoch: Int) -> RingingAlarm? {
+        guard let item = cachedItems().first(where: { $0.scheduleId == scheduleId }) else { return nil }
+        return RingingAlarm(scheduleId: scheduleId, dueEpoch: dueEpoch, title: item.title, message: item.message, needsAck: item.needsAck)
+    }
+
+    /// 방금 울린 알람 중 아직 확인·표시하지 않은 것. 다시 알림이 이어지는 동안(기본 10분 간격 3번)에는 계속 찾는다.
     func pendingRing(now: Date) -> RingingAlarm? {
-        guard let data = store.data(forKey: cacheKey),
-              let items = try? JSONDecoder().decode([ScheduleItem].self, from: data) else { return nil }
+        let items = cachedItems()
+        guard !items.isEmpty else { return nil }
         let handled = Set(store.stringArray(forKey: handledKey) ?? [])
+        let maxReminders = ConfigStore.shared.current.schedule.maxReminders
         for item in items where item.active {
-            let windowStart = now.addingTimeInterval(-15 * 60)
+            let minutes = 15 + (item.needsAck ? maxReminders * item.reminderAfterMin : 0)
+            let windowStart = now.addingTimeInterval(-Double(minutes) * 60)
             for due in RRule.occurrences(item, from: windowStart, to: now) where due >= windowStart && due <= now {
                 let epoch = Int(due.timeIntervalSince1970)
                 if !handled.contains("\(item.scheduleId)|\(epoch)") {
@@ -176,7 +190,8 @@ struct ScheduleAlarmMetadata: AlarmMetadata {
 /// 알람의 "했어요" 버튼. 앱이 꺼져 있어도 시스템이 이 인텐트를 실행한다.
 struct AckScheduleIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "일정 확인"
-    static let openAppWhenRun = false
+    /// 알람을 끄면 앱을 열어 확인 화면("했어요")을 보여 준다. 확인(ack)은 그 화면에서 보낸다.
+    static let openAppWhenRun = true
 
     @Parameter(title: "일정 ID") var scheduleId: String
     @Parameter(title: "예정 시각") var dueEpoch: Int
@@ -185,8 +200,13 @@ struct AckScheduleIntent: LiveActivityIntent {
     init(scheduleId: String, dueEpoch: Int) { self.scheduleId = scheduleId; self.dueEpoch = dueEpoch }
 
     func perform() async throws -> some IntentResult {
-        let api = await MainActor.run { AppState.shared.api }
-        await AlarmScheduler.shared.acknowledge(scheduleId: scheduleId, dueEpoch: dueEpoch, api: api)
+        // 여기서 바로 확인을 보내지 않는다: 끄기만 하고 약을 드시지 않았을 수 있다.
+        // 확인 화면에서 "했어요"를 눌러야 남은 다시 알림이 취소되고 서버에 기록된다.
+        let (id, due) = (scheduleId, dueEpoch)
+        await MainActor.run {
+            if let alarm = AlarmScheduler.shared.ringingAlarm(scheduleId: id, dueEpoch: due) { AppState.shared.ringing = alarm }
+            else { AppState.shared.checkRinging() }
+        }
         return .result()
     }
 }

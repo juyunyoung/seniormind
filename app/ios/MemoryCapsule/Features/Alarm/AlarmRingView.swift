@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 앱 안 알람 화면(시니어). 시스템 알람(AlarmKit)과 별개로, 앱이 열려 있거나 알람을 눌러 들어왔을 때 보인다.
+/// 앱 안 알람 화면(시니어). 시스템 알람(AlarmKit)을 끄면 앱이 열리며 이 화면이 뜬다. 앱이 열려 있을 때도 보인다.
 /// 문구를 기기 TTS로 2번 읽는다(Live 세션 사용 안 함). 확인 필요 일정만 "했어요" 버튼과 ack가 있다(앱 계획서 2.4).
 struct AlarmRingView: View {
     let alarm: RingingAlarm
@@ -19,6 +19,9 @@ struct AlarmRingView: View {
             if alarm.needsAck {
                 Button("했어요") { Task { await done() } }
                     .buttonStyle(PrimaryButtonStyle()).frame(maxWidth: .infinity)
+                // 아직 하지 않았으면 닫기만 한다. 다시 알림은 그대로 울린다.
+                Button("나중에 할게요") { later() }
+                    .buttonStyle(SecondaryButtonStyle()).frame(maxWidth: .infinity)
             }
             Button { speak() } label: { Label("다시 듣기", systemImage: "speaker.wave.2.fill") }
                 .font(.title3.weight(.semibold)).frame(minHeight: 48)
@@ -47,6 +50,12 @@ struct AlarmRingView: View {
             while Narrator.shared.isSpeaking { try? await Task.sleep(for: .milliseconds(200)) }
             try? await Task.sleep(for: .seconds(1))
         }
+    }
+
+    private func later() {
+        Narrator.shared.stop()
+        AlarmScheduler.shared.markHandled(scheduleId: alarm.scheduleId, dueEpoch: alarm.dueEpoch)   // 앱을 다시 열 때마다 뜨지 않게
+        close()
     }
 
     private func done() async {
