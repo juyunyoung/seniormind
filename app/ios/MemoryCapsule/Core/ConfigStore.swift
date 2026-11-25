@@ -35,5 +35,12 @@ final class ConfigStore: @unchecked Sendable {
         let fallback = level == .r2 ? "R2_CHECK_IN" : "R3_SAFETY_CHECK"
         return phrases.first { $0.id == fallback } ?? phrases.first { $0.level == level }
     }
-    func actionText(code: String?) -> String? { code.flatMap { current.safety.actionText?[$0] } }
+    func actionText(code: String?) -> String? {
+        guard let code, let map = current.safety.actionText else { return nil }
+        if let text = map[code] { return text }
+        // 서버 응답을 읽을 때 사전의 키도 snake_case 변환을 거친다(CHECK_IN → checkIn)
+        let parts = code.split(separator: "_").map { $0.lowercased() }
+        guard let first = parts.first else { return nil }
+        return map[first + parts.dropFirst().map(\.capitalized).joined()]
+    }
 }

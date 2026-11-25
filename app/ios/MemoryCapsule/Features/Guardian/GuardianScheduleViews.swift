@@ -104,6 +104,11 @@ struct GuardianScheduleEditView: View {
         item.message = item.isMedication ? "\(item.title) 드실 시간이에요." : "\(item.title) 시간이에요."
         do { try await store.save(item, api: app.api); dismiss() }
         catch let e as APIError where e.code == "consent_required" { error = "부모님이 일정 공유에 아직 동의하지 않으셨어요." }
+        // 서버는 지금 약 알림, 매일·요일 반복만 받는다(종류 "일정"·시작 날짜·반복 없음은 작업 목록 N24 반영 후)
+        catch let e as APIError where e.code == "schedule_type_unsupported" || e.code == "rrule_unsupported" {
+            error = "지금은 약 알림(매일·요일 반복)만 저장할 수 있어요."
+        }
+        catch let e as APIError where e.code == "not_linked" || e.code == "permission_denied" { error = "연결된 부모님의 일정만 저장할 수 있어요." }
         catch { self.error = "저장하지 못했어요. 잠시 후 다시 해 주세요." }
     }
 

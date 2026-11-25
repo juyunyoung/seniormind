@@ -61,13 +61,17 @@ extension SeniorScaffold where Bottom == EmptyView {
 struct SpeechBubble: View {
     let text: String
     var size: CGFloat = 28
+    /// 줄 수 제한. 넘치면 앞부분을 줄이고 가장 최근 말을 보여 준다(대화 중 기억이가 가려지지 않게).
+    var maxLines: Int? = nil
 
     var body: some View {
         Text(text)
             .font(.system(size: size, weight: .bold))
-            .lineSpacing(6)
+            .lineSpacing(maxLines == nil ? 6 : 4)
+            .lineLimit(maxLines)
+            .truncationMode(.head)
             .multilineTextAlignment(.center)
-            .padding(.horizontal, 26).padding(.vertical, 20)
+            .padding(.horizontal, maxLines == nil ? 26 : 20).padding(.vertical, maxLines == nil ? 20 : 14)
             .frame(maxWidth: 520)
             .background(Theme.bubble, in: RoundedRectangle(cornerRadius: 28))
             .overlay(alignment: .bottom) {

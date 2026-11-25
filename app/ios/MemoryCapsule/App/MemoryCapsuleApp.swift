@@ -15,6 +15,8 @@ struct MemoryCapsuleApp: App {
             RootView()
                 .environment(app)
                 .tint(Theme.green)
+                // 화면 바탕이 밝은 색으로 고정돼 있다. 휴대폰이 다크 모드여도 글자가 흰색으로 바뀌지 않게 밝은 모드로 고정.
+                .preferredColorScheme(.light)
                 .task { await app.bootstrap() }
                 .onOpenURL { url in DeepLink.handle(url) }
                 .onChange(of: scenePhase) { _, phase in
@@ -48,7 +50,18 @@ enum DeepLink {
     nonisolated(unsafe) static var pendingPairCode: String?
     static let schemes: Set<String> = ["memorycapsule"]
 
+    /// 이 앱이 읽을 수 있는 QR 형식 버전
+    static let supportedVersions: Set<String> = ["1"]
+
+    /// 우리 앱의 연결 QR이지만 이 앱이 모르는 새 형식이면 true(앱 계획서 2.2: 업데이트 안내)
+    static func needsUpdate(_ text: String) -> Bool {
+        guard let comps = URLComponents(string: text), let scheme = comps.scheme, schemes.contains(scheme), comps.host == "pair",
+              let v = comps.queryItems?.first(where: { $0.name == "v" })?.value else { return false }
+        return !supportedVersions.contains(v)
+    }
+
     static func parsePairCode(_ text: String) -> String? {
+        if needsUpdate(text) { return nil }
         if let comps = URLComponents(string: text), let scheme = comps.scheme, schemes.contains(scheme), comps.host == "pair",
            let code = comps.queryItems?.first(where: { $0.name == "code" })?.value, code.count == 6 { return code }
         let digits = text.filter(\.isNumber)
@@ -95,6 +108,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound, .list]
     }
+
+    /// 보호자 알림(위험 신호·일정 미확인) 푸시를 눌렀을 때: 알림 탭을 열고 목록을 새로 받는다.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        guard let type = info["type"] as? String, type == "risk" || type == "schedule_missed" else { return }
+        let alertId = info["alert_id"] as? String
+        await MainActor.run { NotificationCenter.default.post(name: .guardianAlertOpened, object: alertId) }
+    }
 }
 
 #if canImport(FirebaseMessaging)
@@ -108,4 +129,5 @@ extension AppDelegate: MessagingDelegate {
 
 extension Notification.Name {
     static let pairingDone = Notification.Name("sm.pairingDone")
+    static let guardianAlertOpened = Notification.Name("sm.guardianAlertOpened")
 }

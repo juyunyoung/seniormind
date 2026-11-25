@@ -8,17 +8,28 @@ enum LinkRoute: Hashable {
     case confirm(code: String, seniorId: String, name: String?)
 }
 
-/// QR·번호 → 부모님 확인. 서버 N21 `POST /pairing/resolve`(팀 서버 미구현, 목 모드만 동작).
+/// QR·번호 → 부모님 확인. 서버 N21 `POST /pairing/resolve`.
 enum PairingResolver {
     static let errorText = "번호가 맞지 않거나 만료됐어요. 부모님 앱의 새 번호를 확인해 주세요."
+    static let networkText = "지금은 연결이 어려워요. 잠시 후 다시 해 주세요."
     static func resolve(_ code: String, api: APIClient) async -> Result<LinkRoute, PairingResolveError> {
         do {
             let t = try await api.resolvePairing(code: code)
             return .success(.confirm(code: code, seniorId: t.seniorId, name: t.displayName))
-        } catch let e as APIError where e.status == 404 || e.status == 405 {
-            return .failure(.init(message: "아직 서버가 준비되지 않았어요. (pairing/resolve)"))
         } catch {
-            return .failure(.init(message: errorText))
+            return .failure(.init(message: message(for: error)))
+        }
+    }
+
+    /// 번호가 틀렸을 때와 그 밖의 실패를 나눠 알린다(앱 계획서 2.2).
+    static func message(for error: Error) -> String {
+        guard let e = error as? APIError, let status = e.status else { return networkText }
+        switch (status, e.code) {
+        case (_, "pairing_code_expired"), (_, "pairing_code_invalid"), (404, _): return errorText
+        case (429, _): return "여러 번 시도하셨어요. 잠시 후 다시 해 주세요."
+        case (_, "consent_required"): return "부모님이 보호자 연결에 아직 동의하지 않으셨어요.\n부모님 앱의 보호자 연결 화면에서 동의해 주세요."
+        case (400, _): return errorText
+        default: return networkText
         }
     }
 }
@@ -80,6 +91,7 @@ struct GuardianQRView: View {
             ZStack {
                 if canScan {
                     QRScannerView { text in
+                        if DeepLink.needsUpdate(text) { error = "새 형식의 QR이에요. 앱을 업데이트해 주세요."; return }
                         guard !busy, let code = DeepLink.parsePairCode(text) else { return }
                         Task { await resolve(code) }
                     }
@@ -190,10 +202,8 @@ struct GuardianLinkConfirmView: View {
         } catch let e as APIError where e.code == "already_linked" {
             await store.loadLinks(app.api)
             error = "이미 연결된 부모님이에요."
-        } catch let e as APIError where e.code == "pairing_code_expired" || e.code == "pairing_code_invalid" {
-            error = PairingResolver.errorText
         } catch {
-            self.error = "지금은 연결이 어려워요. 잠시 후 다시 해 주세요."
+            self.error = PairingResolver.message(for: error)
         }
     }
 }

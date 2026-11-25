@@ -19,6 +19,8 @@ final class GuardianStore {
     var linksState: Load = .idle
     var board: Board?
     var boardState: Load = .idle
+    /// 보드를 불러오지 못한 이유(G11 문구 구분)
+    var boardFailure: BoardFailure?
     var alerts: [Board.AlertItem] = []
     var schedules: [ScheduleItem] = []
     var tab: GuardianTab = .today
@@ -85,8 +87,14 @@ final class GuardianStore {
         guard let id = current?.seniorId else { return }
         if board == nil { boardState = .loading }
         do {
-            board = try await api.board(seniorId: id); boardState = .loaded
-        } catch { boardState = .failed }
+            board = try await api.board(seniorId: id); boardState = .loaded; boardFailure = nil
+        } catch {
+            let failure = BoardFailure(error)
+            boardFailure = failure
+            // 동의·연결이 없어진 뒤에는 예전에 받은 내용을 계속 보여 주지 않는다
+            if failure.hidesOldBoard { board = nil }
+            boardState = .failed
+        }
         await loadSchedules(api)
         await loadAlerts(api)
     }
@@ -94,7 +102,7 @@ final class GuardianStore {
     func loadAlerts(_ api: APIClient) async {
         guard let id = current?.seniorId else { return }
         if let list = try? await api.alerts(seniorId: id) {
-            alerts = list.sorted { $0.lastDetectedAt > $1.lastDetectedAt }
+            alerts = list.sorted { ($0.lastDetectedAt ?? .distantPast) > ($1.lastDetectedAt ?? .distantPast) }
         } else if let b = board {
             alerts = b.alertsRecent     // 알림 목록 API가 없으면 보드의 최근 알림만
         }
@@ -109,7 +117,8 @@ final class GuardianStore {
     func followUp(_ alert: Board.AlertItem, status: String, api: APIClient) async throws {
         try await api.alertFollowUp(id: alert.alertId, status: status)
         if let i = alerts.firstIndex(where: { $0.alertId == alert.alertId }) {
-            alerts[i].safetyFollowUpStatus = status; alerts[i].deliveryStatus = "safety_checked"
+            alerts[i].safetyFollowUpStatus = status
+            if status == "verified" { alerts[i].deliveryStatus = "safety_checked" }   // 서버도 확인했을 때만 바꾼다
         }
     }
 
@@ -121,6 +130,8 @@ final class GuardianStore {
     }
 
     func save(_ item: ScheduleItem, api: APIClient) async throws {
+        var item = item
+        if item.seniorId.isEmpty, let id = current?.seniorId { item.seniorId = id }
         _ = try await api.saveSchedule(item)
         await loadSchedules(api); await loadBoard(api)
     }
@@ -174,11 +185,85 @@ enum GuardianText {
 }
 
 extension Board {
-    /// G10: 아직 대화 기록이 없음
+    /// 어르신이 마음 상태 공유(`sensitive`)에 동의했는지. 서버는 동의가 없으면 emotion_7d를 빈 객체로 보낸다
+    /// (백엔드 착수 v0.6 2.8. 응답에 sharing 값이 생기면 그 값을 쓴다 — 작업 목록 N25).
+    var emotionShared: Bool { sharing?.emotion ?? !emotion7d.isEmpty }
+    /// 동의는 있는데 최근 7일 판단이 0건(서버는 네 값을 모두 0으로 보냄)
+    var hasEmotionData: Bool { emotionShared && emotion7d.values.contains { $0 > 0 } }
+    /// G10: 보여 줄 것이 아무것도 없음(동의는 있고 대화·일정·알림이 모두 없음)
     var isEmpty: Bool {
-        let talks = conversationCounts7d?.reduce(0) { $0 + $1.count } ?? 0
-        return talks == 0 && emotion7d.isEmpty && alertsRecent.isEmpty
+        emotionShared && !hasEmotionData && todaySchedules.isEmpty && alertsRecent.isEmpty
     }
+}
+
+/// 보드 요청이 실패한 이유. 서버(이현님 구현)는 동의·연결 문제를 403과 오류 코드로 알려 준다.
+enum BoardFailure: Equatable {
+    case consent            // 403 consent_required: 어르신 공유 동의 또는 보호자 동의 없음
+    case notLinked          // 403 not_linked: 연결이 끊김
+    case denied             // 그 밖의 403·404: 볼 권한 없음
+    case network            // 서버에 닿지 못함
+    case server(String)     // 서버 오류·응답 형식 문제
+
+    init(_ error: Error) {
+        if let api = error as? APIError {
+            switch (api.status, api.code) {
+            case (_, "consent_required"): self = .consent
+            case (_, "not_linked"): self = .notLinked
+            case (403, _), (404, _): self = .denied
+            case (let status?, let code): self = .server("\(status) \(code ?? "")")
+            default: self = .server("응답 형식")
+            }
+        } else if error is URLError { self = .network }
+        else if let e = error as? DecodingError { self = .server("응답 형식 · " + Self.field(e)) }
+        else { self = .network }
+    }
+
+    /// 읽지 못한 항목의 이름(내용은 담지 않는다). 개발용 빌드의 "원인:" 표시에만 쓴다.
+    private static func field(_ error: DecodingError) -> String {
+        func path(_ c: DecodingError.Context) -> String { c.codingPath.map(\.stringValue).joined(separator: ".") }
+        switch error {
+        case .keyNotFound(let key, let c): return "없음: " + (c.codingPath.map(\.stringValue) + [key.stringValue]).joined(separator: ".")
+        case .valueNotFound(_, let c): return "비어 있음: " + path(c)
+        case .typeMismatch(_, let c): return "형식 다름: " + path(c)
+        case .dataCorrupted(let c): return "읽을 수 없음: " + path(c)
+        @unknown default: return "알 수 없음"
+        }
+    }
+
+    var hidesOldBoard: Bool { self == .consent || self == .notLinked || self == .denied }
+    var icon: String {
+        switch self {
+        case .consent: "hand.raised"
+        case .notLinked, .denied: "person.crop.circle.badge.exclamationmark"
+        case .network: "wifi.exclamationmark"
+        case .server: "exclamationmark.triangle"
+        }
+    }
+    var title: String {
+        switch self {
+        case .consent: "아직 볼 수 없어요"
+        case .notLinked: "연결이 끊겼어요"
+        case .denied: "볼 수 있는 권한이 없어요"
+        case .network: "연결을 확인해 주세요"
+        case .server: "잠시 문제가 생겼어요"
+        }
+    }
+    var message: String {
+        switch self {
+        case .consent: "부모님이 보호자와 나누기에 아직 동의하지 않으셨어요.\n부모님 앱의 보호자 연결 화면에서 동의하실 수 있어요."
+        case .notLinked: "부모님과의 연결이 끊겼어요.\n설정에서 다시 연결해 주세요."
+        case .denied: "부모님과의 연결 상태를 설정에서 확인해 주세요."
+        case .network: "인터넷 연결을 확인하고 다시 불러와 주세요."
+        case .server: "잠시 후 다시 불러와 주세요."
+        }
+    }
+    /// 개발용 빌드에서만 보여 주는 원인
+    var debugText: String? { if case .server(let detail) = self { detail } else { nil } }
+}
+
+enum GuardianNotice {
+    static let emotionNotShared = "어르신이 마음 상태 공유에 아직 동의하지 않으셨어요.\n어르신 앱의 보호자 연결 화면에서 동의하실 수 있어요."
+    static let noTalks = "최근 7일 동안 나눈 대화가 없어요."
 }
 
 extension ScheduleItem {

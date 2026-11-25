@@ -226,6 +226,10 @@ struct DecisionResponse: Codable, Sendable {
     var assessmentId: String?
     var usage: Usage?
     var latencyMs: Int?
+    /// "END"면 어르신이 대화를 마치려는 것(완료 판단에서만). 값이 없으면 nil.
+    var endIntent: String? = nil
+    /// 기억 제어 확인 상태: pending(확인 필요) | executed | cancelled. 기억 제어가 없으면 nil.
+    var memoryControlStatus: String? = nil
 }
 
 struct TranscriptPart: Codable, Sendable {
@@ -237,10 +241,11 @@ struct TranscriptPart: Codable, Sendable {
 }
 
 struct SessionEndRequest: Codable, Sendable {
-    struct Usage: Codable, Sendable { var seconds: Int? }
+    /// 서버는 usage를 보내면 seconds가 반드시 있어야 한다(없으면 400). 모르면 usage 자체를 생략.
+    struct Usage: Codable, Sendable { var seconds: Double }
     var endReason: String     // user | limit | error
     var durationSec: Int
-    var usage: Usage
+    var usage: Usage?
     var transcript: [TranscriptPart]
 }
 
@@ -293,7 +298,8 @@ struct ScheduleItem: Codable, Sendable, Identifiable, Hashable {
 
 struct ScheduleAck: Codable, Sendable {
     var dueAt: Date
-    var firedAt: Date?
+    /// 서버 필수. due_at ≤ fired_at ≤ acked_at 이어야 한다(아니면 400).
+    var firedAt: Date
     var ackedAt: Date
     var ackMethod: String      // button | voice | alarm_stop
     var syncedFromOffline: Bool
@@ -308,7 +314,7 @@ struct Board: Codable, Sendable {
     struct Frequency: Codable, Sendable { var distinctDays7d: Int?; var independentSessions7d: Int? }
     struct AlertItem: Codable, Sendable, Identifiable {
         var alertId: String; var type: String; var riskLevel: RiskLevel?
-        var riskDomains: [String]?; var firstDetectedAt: Date?; var lastDetectedAt: Date
+        var riskDomains: [String]?; var firstDetectedAt: Date?; var lastDetectedAt: Date?   // 서버가 옛 자료에서는 비워 보낼 수 있다
         var trend: String?; var frequency: Frequency?
         var recommendedAction: String?     // CHECK_IN | PROMPT_CONTACT | URGENT_SAFETY_CHECK
         var deliveryStatus: String?; var safetyFollowUpStatus: String?
@@ -333,6 +339,9 @@ struct Board: Codable, Sendable {
     /// G06 관찰된 신호: 영역별 최근 7일 날짜별 관찰 수(목 전용 확장, 명세에 없음)
     var signalCounts7d: [String: [DailyCount]]? = nil
     var updatedAt: Date? = nil
+    /// 어르신 동의에 따른 공개 범위(백엔드 착수 v0.6 2.8, 서버 반영 전에는 nil)
+    var sharing: Sharing? = nil
+    struct Sharing: Codable, Sendable { var emotion: Bool?; var alerts: Bool?; var schedules: Bool?; var topics: Bool? }
 
     struct DailyCount: Codable, Sendable, Identifiable, Hashable { var date: String; var count: Int; var id: String { date } }
 }

@@ -14,6 +14,7 @@ struct SafetyView: View {
             Spacer(minLength: 8)
             Image(systemName: "heart.text.square.fill").font(.system(size: 52)).foregroundStyle(Theme.error)
             Text(phrase.text).font(.system(size: 26, weight: .bold)).multilineTextAlignment(.center).lineSpacing(6)
+                .foregroundStyle(Theme.text)
             VStack(spacing: 12) {
                 ForEach(numbers, id: \.self) { number in
                     let name = safety.contacts?.first { $0.number == number }?.name ?? number

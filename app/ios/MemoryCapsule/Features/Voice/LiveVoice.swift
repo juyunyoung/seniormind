@@ -130,6 +130,8 @@ final class MockLiveVoice: LiveVoice {
 enum AppInfo {
     static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1" }
     static var useMock: Bool { (Bundle.main.object(forInfoDictionaryKey: "MC_USE_MOCK") as? String ?? "YES").uppercased() != "NO" }
+    /// App Check 사용 여부(Config의 MC_APP_CHECK). 서버가 검사하지 않는 동안은 꺼 둔다.
+    static var useAppCheck: Bool { (Bundle.main.object(forInfoDictionaryKey: "MC_APP_CHECK") as? String ?? "NO").uppercased() == "YES" }
     /// 연결한 백엔드 이름(기본 team). Config의 MC_BACKEND
     static var backend: String { Bundle.main.object(forInfoDictionaryKey: "MC_BACKEND") as? String ?? "team" }
     /// 백엔드별 Firebase 설정 파일. MemoryCapsule/Firebase/<이름>.plist, 없으면 예전 위치의 GoogleService-Info.plist

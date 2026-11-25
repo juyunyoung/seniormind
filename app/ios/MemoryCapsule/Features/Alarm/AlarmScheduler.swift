@@ -32,7 +32,13 @@ final class AlarmScheduler {
     /// 서버 일정 전체를 받아 알람을 다시 채운다(앱 시작·포그라운드·무음 푸시).
     func sync(api: APIClient, seniorId: String) async {
         await flushPendingAcks(api: api)
-        guard let items = try? await api.schedules(seniorId: seniorId) else { return }
+        let items: [ScheduleItem]
+        do { items = try await api.schedules(seniorId: seniorId) }
+        catch {
+            // 일정 공유 동의를 거두었거나 볼 권한이 없어지면(403) 예약해 둔 알람도 지운다. 통신 오류일 때는 그대로 둔다.
+            if (error as? APIError)?.status == 403 { cancelAll(); store.removeObject(forKey: cacheKey); store.removeObject(forKey: mapKey) }
+            return
+        }
         if let data = try? JSONEncoder().encode(items) { store.set(data, forKey: cacheKey) }
         var allowed = permissionString == "granted"
         if !allowed { allowed = await requestPermission() }
@@ -114,15 +120,29 @@ final class AlarmScheduler {
             map.removeValue(forKey: key)
         }
         store.set(map, forKey: mapKey)
-        let ack = ScheduleAck(dueAt: Date(timeIntervalSince1970: Double(dueEpoch)), firedAt: nil, ackedAt: .now,
-                              ackMethod: method, syncedFromOffline: false)
-        do { try await api.ack(scheduleId: scheduleId, ack) } catch { savePending(scheduleId, ack) }
+        let ack = Self.makeAck(due: Double(dueEpoch), acked: Date.now.timeIntervalSince1970, method: method, offline: false)
+        do { try await api.ack(scheduleId: scheduleId, ack) }
+        catch { if Self.shouldRetryAck(error) { savePending(scheduleId, ack) } }
+    }
+
+    /// 서버 규칙: due_at은 분 단위, due_at ≤ fired_at ≤ acked_at. 알람이 울린 시각을 따로 받지 못하므로 예정 시각을 fired_at으로 쓴다.
+    private static func makeAck(due: Double, acked: Double, method: String, offline: Bool) -> ScheduleAck {
+        let dueAt = Date(timeIntervalSince1970: (due / 60).rounded(.down) * 60)
+        let ackedAt = max(Date(timeIntervalSince1970: acked), dueAt)
+        return ScheduleAck(dueAt: dueAt, firedAt: dueAt, ackedAt: ackedAt, ackMethod: method, syncedFromOffline: offline)
+    }
+
+    /// 400·403·404(형식 오류, 동의·권한 없음, 지워진 일정, 확인이 필요 없는 일정)는 다시 보내도 같은 결과라 버린다. 그 밖(네트워크, 401, 5xx)은 보관 후 재전송.
+    private static func shouldRetryAck(_ error: Error) -> Bool {
+        if case APIError.server(let status, _, _) = error { return !(status == 400 || status == 403 || status == 404) }
+        return true
     }
 
     private func savePending(_ scheduleId: String, _ ack: ScheduleAck) {
         var list = store.array(forKey: pendingAckKey) as? [[String: Any]] ?? []
-        list.append(["id": scheduleId, "due": ack.dueAt.timeIntervalSince1970, "acked": ack.ackedAt.timeIntervalSince1970])
-        store.set(list, forKey: pendingAckKey)
+        list.append(["id": scheduleId, "due": ack.dueAt.timeIntervalSince1970, "acked": ack.ackedAt.timeIntervalSince1970,
+                     "method": ack.ackMethod])
+        store.set(Array(list.suffix(200)), forKey: pendingAckKey)
     }
 
     private func flushPendingAcks(api: APIClient) async {
@@ -130,9 +150,8 @@ final class AlarmScheduler {
         var remaining: [[String: Any]] = []
         for e in list {
             guard let id = e["id"] as? String, let due = e["due"] as? Double, let acked = e["acked"] as? Double else { continue }
-            let ack = ScheduleAck(dueAt: Date(timeIntervalSince1970: due), firedAt: nil, ackedAt: Date(timeIntervalSince1970: acked),
-                                  ackMethod: "alarm_stop", syncedFromOffline: true)
-            do { try await api.ack(scheduleId: id, ack) } catch { remaining.append(e) }
+            let ack = Self.makeAck(due: due, acked: acked, method: e["method"] as? String ?? "alarm_stop", offline: true)
+            do { try await api.ack(scheduleId: id, ack) } catch { if Self.shouldRetryAck(error) { remaining.append(e) } }
         }
         store.set(remaining, forKey: pendingAckKey)
     }

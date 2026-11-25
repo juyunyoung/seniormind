@@ -40,10 +40,11 @@ actor MockAPIClient: APIClient {
         var control: MemoryControl = .none
         if has(["지워줘", "잊어줘"]) { control = .delete }
         else if has(["보여주지 마", "말하지 마"]) { control = .doNotShare }
+        let endIntent = body.final && risk != .r2 && risk != .r3 && has(["쉴게", "그만 하자", "그만하자", "그만할게", "자자"]) ? "END" : "NONE"
         return DecisionResponse(reaction: reaction, riskLevel: risk, assessmentStatus: "assessed",
                                 safetyOverride: phraseId != nil, safetyPhraseId: phraseId,
                                 memoryControl: control, assessmentId: UUID().uuidString,
-                                usage: .init(inputTokens: 300 + body.inputText.count), latencyMs: nil)
+                                usage: .init(inputTokens: 300 + body.inputText.count), latencyMs: nil, endIntent: endIntent)
     }
     func endSession(id: String, _ body: SessionEndRequest) async throws {}
     func memoryControl(_ body: MemoryControlRequest) async throws {}

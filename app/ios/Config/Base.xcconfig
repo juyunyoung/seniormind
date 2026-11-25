@@ -5,6 +5,10 @@ MC_ENTITLEMENTS = MemoryCapsule/Entitlements/Free.entitlements
 MC_USE_MOCK = YES
 
 // ── 연결할 백엔드 ─────────────────────────────────────────────
+// Firebase App Check(진짜 앱에서 온 요청인지 확인). 서버가 검사하기 전까지는 NO.
+// YES로 하면 개발 빌드는 콘솔에 나오는 디버그 토큰을 Firebase 콘솔에 등록해야 한다.
+MC_APP_CHECK = NO
+
 // Local.xcconfig의 MC_BACKEND 한 줄로 바꾼다. 이 저장소(seniormind)의 기본은 seniormind(내 백엔드).
 // 바꾸기: "$HOME/seniormind/app/ios/scripts/switch_backend.sh" seniormind | team | mock
 MC_BACKEND = seniormind

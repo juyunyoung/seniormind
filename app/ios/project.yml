@@ -56,6 +56,7 @@ targets:
             CFBundleURLSchemes: [memorycapsule]
         MC_API_BASE_URL: $(MC_API_BASE_URL)
         MC_USE_MOCK: $(MC_USE_MOCK)
+        MC_APP_CHECK: $(MC_APP_CHECK)
         MC_BACKEND: $(MC_BACKEND)
         MC_FIREBASE_PLIST: $(MC_FIREBASE_PLIST)
     settings:

@@ -45,6 +45,30 @@ protocol APIClient: Sendable {
 }
 
 /// 실제 서버 호출. JSON은 snake_case, 날짜는 ISO-8601 UTC.
+/// 서버 시각 문자열(ISO-8601, 소수 초 있음/없음 모두) 해석.
+/// 서버 응답의 snake_case 키를 Swift 이름으로 바꿀 때 쓰는 키
+struct SnakeKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(_ string: String) { stringValue = string }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
+}
+
+enum ServerDate {
+    static func parse(_ text: String) -> Date? {
+        if let d = try? Date(text, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)) { return d }
+        if let d = try? Date(text, strategy: Date.ISO8601FormatStyle()) { return d }
+        // 소수 자리가 6~9자리(마이크로·나노초)면 밀리초까지만 남기고 다시 읽는다
+        if let dot = text.firstIndex(of: "."), let end = text[dot...].firstIndex(where: { $0 == "Z" || $0 == "+" || $0 == "-" }) {
+            let fraction = String(text[text.index(after: dot)..<end].prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)
+            let trimmed = String(text[..<dot]) + "." + fraction + String(text[end...])
+            return try? Date(trimmed, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+        }
+        return nil
+    }
+}
+
 struct HTTPAPIClient: APIClient {
     let baseURL: URL
     let auth: AuthService
@@ -55,7 +79,23 @@ struct HTTPAPIClient: APIClient {
         let e = JSONEncoder(); e.keyEncodingStrategy = .convertToSnakeCase; e.dateEncodingStrategy = .iso8601; return e
     }()
     private static let decoder: JSONDecoder = {
-        let d = JSONDecoder(); d.keyDecodingStrategy = .convertFromSnakeCase; d.dateDecodingStrategy = .iso8601; return d
+        let d = JSONDecoder()
+        // 기본 .convertFromSnakeCase는 숫자로 시작하는 마디를 "7D"로 바꿔서(emotion_7d → emotion7D)
+        // emotion7d 같은 이름과 맞지 않는다. 같은 규칙에 숫자 마디만 그대로 두는 변환을 쓴다.
+        d.keyDecodingStrategy = .custom { path in
+            let key = path.last?.stringValue ?? ""
+            let parts = key.split(separator: "_")
+            guard key.contains("_"), let first = parts.first else { return SnakeKey(key) }
+            let rest = parts.dropFirst().map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+            return SnakeKey(first.lowercased() + rest.joined())
+        }
+        // 서버(이현님 구현)는 시각을 "2026-11-12T08:33:42.123456Z"처럼 소수 초까지 보낸다. 기본 .iso8601은 소수 초를 읽지 못한다.
+        d.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            if let date = ServerDate.parse(text) { return date }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "날짜 형식 오류"))
+        }
+        return d
     }()
     private struct Empty: Codable {}
 
@@ -84,8 +124,8 @@ struct HTTPAPIClient: APIClient {
         if Out.self == Empty.self || data.isEmpty { return try Self.decoder.decode(Out.self, from: Data("{}".utf8)) }
         return try Self.decoder.decode(Out.self, from: data)
     }
-    private func send<Body: Encodable>(_ method: String, _ path: String, _ body: Body?) async throws {
-        let _: Empty = try await send(method, path, body)
+    private func send<Body: Encodable>(_ method: String, _ path: String, _ body: Body?, timeout: TimeInterval = 15) async throws {
+        let _: Empty = try await send(method, path, body, timeout: timeout)
     }
     private func get<Out: Decodable>(_ path: String) async throws -> Out { try await send("GET", path, Optional<Empty>.none) }
 
@@ -96,7 +136,8 @@ struct HTTPAPIClient: APIClient {
 
     func createSession(_ body: SessionCreateRequest) async throws -> SessionCreateResponse { try await send("POST", "api/session", body, timeout: 25) }
     func decision(_ body: DecisionRequest) async throws -> DecisionResponse { try await send("POST", "api/decision", body, timeout: 10) }
-    func endSession(id: String, _ body: SessionEndRequest) async throws { try await send("POST", "sessions/\(id)/end", body) }
+    /// 서버가 카드 추출에 최대 60초를 쓰므로 넉넉히 기다린다(모바일 가이드 4장).
+    func endSession(id: String, _ body: SessionEndRequest) async throws { try await send("POST", "sessions/\(id)/end", body, timeout: 75) }
     func memoryControl(_ body: MemoryControlRequest) async throws { try await send("POST", "memories/control", body) }
 
     func pairingCode() async throws -> PairingCode { try await send("POST", "pairing/code", Optional<Empty>.none) }

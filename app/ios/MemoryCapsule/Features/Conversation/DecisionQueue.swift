@@ -51,6 +51,7 @@ final class DecisionQueue {
 
     private func runIntermediate() async {
         guard !closed, !busy, let item = pending else { return }
+        guard !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { pending = nil; return }   // 서버: input_text 공백 불가
         pending = nil; lastText = item.text; lastSent = .now; busy = true
         stats.requested += 1; stats.pending = true
         seq += 1
@@ -83,7 +84,9 @@ final class DecisionQueue {
                     return
                 } catch {
                     self.stats.errors += 1
-                    if attempt == 3 { return }
+                    // 같은 ID로 다시 보내도 되는 것은 처리 중(503)·요청 과다(429)·네트워크 오류뿐.
+                    // 400·409(utterance_conflict, session_ended, decision_expired)는 다시 보내지 않는다(모바일 가이드 4장).
+                    if attempt == 3 || !Self.isRetryable(error) { return }
                 }
             }
         }
@@ -94,6 +97,11 @@ final class DecisionQueue {
         stats.latencyMs = Int((ContinuousClock.now - startedAt) / .milliseconds(1))
         if let t = r.usage?.inputTokens { stats.inputTokens += t } else { stats.unknown += 1 }
         if r.reaction != .hold { previous = r.reaction }
+    }
+
+    private static func isRetryable(_ error: Error) -> Bool {
+        if case APIError.server(let status, _, _) = error { return status == 503 || status == 429 }
+        return error is URLError
     }
 
     func countApplied() { stats.applied += 1 }

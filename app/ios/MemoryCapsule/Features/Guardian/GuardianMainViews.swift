@@ -53,6 +53,10 @@ struct GuardianMainView: View {
         }
         .tint(Theme.green)
         .task { await store.loadBoard(app.api) }
+        .onReceive(NotificationCenter.default.publisher(for: .guardianAlertOpened)) { _ in
+            store.tab = .alerts
+            Task { await store.loadAlerts(app.api) }
+        }
     }
 }
 
@@ -67,7 +71,7 @@ struct GuardianTodayView: View {
             case .idle, .loading:
                 ProgressView().frame(maxWidth: .infinity, minHeight: 240)
             case .failed where store.board == nil:
-                GuardianErrorView { Task { await store.loadBoard(app.api) } }
+                GuardianErrorView(failure: store.boardFailure ?? .network) { Task { await store.loadBoard(app.api) } }
             default:
                 if let b = store.board {
                     if b.isEmpty { GuardianEmptyView() } else { content(b) }
@@ -90,12 +94,10 @@ struct GuardianTodayView: View {
             }
             .buttonStyle(.plain)
         }
-        summary(b)
-        GuardianCard(title: "대화량", trailing: AnyView(Text("최근 7일").font(.system(size: 15)).foregroundStyle(Theme.muted))) {
-            let counts = b.conversationCounts7d ?? []
-            if counts.isEmpty {
-                Text("대화량은 서버 준비 후 보여 드려요.").font(.system(size: 16)).foregroundStyle(Theme.muted)
-            } else {
+        if b.emotionShared { summary(b) }
+        // 대화량 막대는 서버 값이 없다(앱 착수 v0.5 2.5). 목 모드의 예시 값이 있을 때만 보여 준다.
+        if let counts = b.conversationCounts7d, !counts.isEmpty {
+            GuardianCard(title: "대화량", trailing: AnyView(Text("최근 7일").font(.system(size: 15)).foregroundStyle(Theme.muted))) {
                 DailyBars(counts: counts, unit: "번")
                 Text("오늘 \(counts.last?.count ?? 0)번 이야기했어요").font(.system(size: 17, weight: .semibold))
             }
@@ -103,10 +105,12 @@ struct GuardianTodayView: View {
         GuardianCard(title: "감정 변화", trailing: AnyView(
             NavigationLink { GuardianEmotionView(board: b) } label: { Text("자세히 ›").font(.system(size: 16, weight: .semibold)) }
         )) {
-            if let top = EmotionSlice.from(b.emotion7d).max(by: { $0.value < $1.value }) {
+            if !b.emotionShared {
+                Text(GuardianNotice.emotionNotShared).font(.system(size: 16)).foregroundStyle(Theme.muted)
+            } else if b.hasEmotionData, let top = EmotionSlice.from(b.emotion7d).max(by: { $0.value < $1.value }) {
                 Text("최근 7일은 \(top.label) 표현이 가장 많았어요.").font(.system(size: 17))
             } else {
-                Text("아직 보여 드릴 감정 기록이 없어요.").font(.system(size: 16)).foregroundStyle(Theme.muted)
+                Text(GuardianNotice.noTalks).font(.system(size: 16)).foregroundStyle(Theme.muted)
             }
         }
         GuardianCard(title: "약·일정 확인", trailing: AnyView(
@@ -200,8 +204,10 @@ struct GuardianEmotionView: View {
         let slices = EmotionSlice.from(board.emotion7d)
         GuardianScaffold(title: "감정 변화") {
             GuardianCard(title: "최근 7일 감정 표현") {
-                if slices.isEmpty {
-                    Text("아직 보여 드릴 감정 기록이 없어요.").foregroundStyle(Theme.muted)
+                if !board.emotionShared {
+                    Text(GuardianNotice.emotionNotShared).font(.system(size: 16)).foregroundStyle(Theme.muted)
+                } else if !board.hasEmotionData {
+                    Text(GuardianNotice.noTalks).font(.system(size: 16)).foregroundStyle(Theme.muted)
                 } else {
                     HStack(spacing: 18) {
                         Chart(slices) { s in
@@ -238,19 +244,17 @@ struct GuardianEmotionView: View {
                         .font(.system(size: 17)).foregroundStyle(Theme.muted)
                 }
             }
-            GuardianCard(title: "관찰된 신호") {
-                let keys = board.signalCounts7d?.keys.sorted() ?? []
-                if keys.isEmpty {
-                    Text("관찰된 신호는 서버 준비 후 보여 드려요.").font(.system(size: 16)).foregroundStyle(Theme.muted)
-                } else {
+            // 관찰된 신호 건수는 서버 값이 없다(앱 착수 v0.5 2.5). 목 모드의 예시 값이 있을 때만 보여 준다.
+            if let signals = board.signalCounts7d, !signals.isEmpty {
+                GuardianCard(title: "관찰된 신호") {
                     Picker("신호", selection: $domain) {
-                        ForEach(keys, id: \.self) { Text(GuardianText.domain($0)).tag($0) }
+                        ForEach(signals.keys.sorted(), id: \.self) { Text(GuardianText.domain($0)).tag($0) }
                     }
                     .pickerStyle(.menu)
-                    DailyBars(counts: board.signalCounts7d?[domain] ?? [], unit: "번", color: Color(hex: 0x8A9BB0))
+                    DailyBars(counts: signals[domain] ?? [], unit: "번", color: Color(hex: 0x8A9BB0))
+                    Text("신호는 진단이 아니에요. 평소와 다른 변화를 살펴보는 참고 자료예요.")
+                        .font(.system(size: 15)).foregroundStyle(Theme.muted)
                 }
-                Text("신호는 진단이 아니에요. 평소와 다른 변화를 살펴보는 참고 자료예요.")
-                    .font(.system(size: 15)).foregroundStyle(Theme.muted)
             }
         }
     }
@@ -263,6 +267,10 @@ struct GuardianAlertsView: View {
 
     var body: some View {
         GuardianScaffold(title: "신호 알림") {
+            if let b = store.board, !b.emotionShared {
+                // 어르신 동의가 없으면 서버가 위험 신호 알림을 만들지도, 보내지도 않는다
+                GuardianCard { Text(GuardianNotice.emotionNotShared).font(.system(size: 16)).foregroundStyle(Theme.muted) }
+            }
             if store.alerts.isEmpty {
                 Text("새로운 신호 알림이 없어요.").font(.system(size: 18)).foregroundStyle(Theme.muted)
                     .frame(maxWidth: .infinity, minHeight: 200)
@@ -283,7 +291,7 @@ struct GuardianAlertsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(AlertText.title(a)).font(.system(size: 18, weight: .bold))
                     .foregroundStyle(a.riskLevel == .r3 ? Theme.error : Theme.text)
-                Text(a.lastDetectedAt.formatted(.relative(presentation: .named))).font(.system(size: 15)).foregroundStyle(Theme.muted)
+                Text(a.lastDetectedAt?.formatted(.relative(presentation: .named)) ?? "시각 정보 없음").font(.system(size: 15)).foregroundStyle(Theme.muted)
             }
             Spacer()
             Text("›").font(.system(size: 22, weight: .semibold)).foregroundStyle(Theme.muted)
@@ -329,7 +337,7 @@ struct GuardianAlertDetailView: View {
                     if let first = a.firstDetectedAt {
                         info("처음 관찰", first.formatted(date: .abbreviated, time: .shortened))
                     }
-                    info("최근 관찰", a.lastDetectedAt.formatted(date: .abbreviated, time: .shortened))
+                    info("최근 관찰", a.lastDetectedAt?.formatted(date: .abbreviated, time: .shortened) ?? "시각 정보 없음")
                     if let f = a.frequency, let d = f.distinctDays7d, let s = f.independentSessions7d {
                         info("최근 7일", "\(d)일 · 대화 \(s)회에서")
                     }
@@ -350,7 +358,15 @@ struct GuardianAlertDetailView: View {
         } bottom: {
             if let a = store.alerts.first(where: { $0.alertId == alertId }), a.type == "risk" {
                 if a.safetyFollowUpStatus == "pending" || a.safetyFollowUpStatus == nil {
-                    Button("부모님 안부를 확인했어요") { Task { await followUp(a) } }.buttonStyle(PrimaryButtonStyle())
+                    VStack(spacing: 10) {
+                        Button("부모님 안부를 확인했어요") { Task { await followUp(a, status: "verified") } }.buttonStyle(PrimaryButtonStyle())
+                        Button("연락이 닿지 않았어요") { Task { await followUp(a, status: "unable_to_contact") } }.buttonStyle(SecondaryButtonStyle())
+                    }
+                } else if a.safetyFollowUpStatus == "unable_to_contact" {
+                    VStack(spacing: 10) {
+                        Text("연락이 닿지 않았다고 기록했어요").font(.system(size: 18, weight: .semibold)).foregroundStyle(Theme.muted)
+                        Button("부모님 안부를 확인했어요") { Task { await followUp(a, status: "verified") } }.buttonStyle(PrimaryButtonStyle())
+                    }
                 } else {
                     Text("안부 확인을 기록했어요 ✓").font(.system(size: 18, weight: .semibold)).foregroundStyle(Theme.green)
                         .frame(minHeight: 56)
@@ -370,8 +386,9 @@ struct GuardianAlertDetailView: View {
         .font(.system(size: 17))
     }
 
-    private func followUp(_ a: Board.AlertItem) async {
-        do { try await store.followUp(a, status: "verified", api: app.api) }
+    private func followUp(_ a: Board.AlertItem, status: String) async {
+        error = nil
+        do { try await store.followUp(a, status: status, api: app.api) }
         catch { self.error = "기록하지 못했어요. 잠시 후 다시 해 주세요." }
     }
 }

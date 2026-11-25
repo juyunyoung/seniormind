@@ -14,7 +14,8 @@ struct ConversationView: View {
 
     var body: some View {
         SeniorScaffold(onSettings: { router.push(.settings) }, settingsDisabled: model.busy) {
-            SpeechBubble(text: bubbleText, size: model.stage == .answering ? 30 : 28)
+            // 대화 중에는 글자를 작게, 최근 네 줄만 보여 준다(긴 대답이 아기 새를 가리지 않게)
+            SpeechBubble(text: bubbleText, size: inTalk ? 20 : 28, maxLines: inTalk ? 4 : nil)
                 .padding(.top, model.stage == .home ? 60 : 24)
                 .animation(.easeOut(duration: 0.2), value: bubbleText)
             Button { if model.stage == .home { model.connect() } } label: {
@@ -27,13 +28,13 @@ struct ConversationView: View {
             .accessibilityLabel(model.stage == .home ? "기억이와 이야기 시작하기" : "기억이")
             .accessibilityHint(model.stage == .home ? "두 번 누르면 대화를 시작해요" : "")
 
-            if model.stage == .listening {
+            if model.stage == .listening, model.state != .closing {
                 Label("듣는 중", systemImage: "circle.fill")
                     .labelStyle(DotLabelStyle())
-                    .font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.green)
-                    .padding(.top, 14)
+                    .font(.system(size: 18, weight: .bold)).foregroundStyle(Theme.green)
+                    .padding(.top, 10)
                     .accessibilityAddTraits(.updatesFrequently)
-                if !model.callerText.isEmpty { callerBox.padding(.top, 14) }
+                if !model.callerText.isEmpty { callerBox.padding(.top, 10) }
             }
             if model.showHotline, let phrase = model.safety, phrase.level == .r2 { hotlineCard(phrase).padding(.top, 20) }
             #if DEBUG
@@ -47,19 +48,23 @@ struct ConversationView: View {
         } bottom: {
             switch model.stage {
             case .waiting:
-                if model.state == .active { Button("다시 말할래") { model.listenAgain() }.buttonStyle(PrimaryButtonStyle()) }
+                if model.state == .active {
+                    Button("다시 말할래") { model.listenAgain() }.buttonStyle(PrimaryButtonStyle())
+                    Button("대화 마치기") { model.end() }.buttonStyle(SecondaryButtonStyle())
+                }
             case .error:
                 Button("다시 이야기하기") { model.connect() }.buttonStyle(PrimaryButtonStyle())
                 Button("홈으로 가기") { model.goHome() }.buttonStyle(SecondaryButtonStyle())
             case .listening, .answering:
                 // 와이어프레임에는 없음: 음성 "그만할게"가 기본, 이 버튼은 대비용
-                Button("대화 마치기") { model.end() }.buttonStyle(SecondaryButtonStyle()).disabled(model.state == .closing)
+                Button(model.state == .closing ? "마무리하는 중…" : "대화 마치기") { model.end() }
+                    .buttonStyle(SecondaryButtonStyle()).disabled(model.state == .closing)
             case .home:
                 EmptyView()
             }
         }
         .sheet(isPresented: Binding(get: { model.memoryPrompt != nil }, set: { if !$0 { model.answerMemoryPrompt(false) } })) {
-            MemoryConfirmView(control: model.memoryPrompt?.control ?? .none) { model.answerMemoryPrompt($0) }
+            MemoryConfirmView(control: model.memoryPrompt?.control ?? .none, phase: model.memoryPhase) { model.answerMemoryPrompt($0) }
                 .presentationDetents([.medium])
                 .interactiveDismissDisabled()
         }
@@ -71,21 +76,26 @@ struct ConversationView: View {
         .onAppear { model.onMicDenied = { router.push(.micOff) } }
     }
 
+    private var inTalk: Bool { model.stage == .listening || model.stage == .answering }
+
     private var bubbleText: String {
+        // 마치는 중: 버튼을 누른 즉시 바뀌어야 눌린 것을 알 수 있다
+        if model.state == .closing { return "대화를 마무리하고 있어요.\n오늘도 고마웠어요." }
         switch model.stage {
         case .home: return app.displayName.map { "\($0)님,\n오늘 어떠셨어요?" } ?? "오늘 어떠셨어요?"
         case .waiting: return "잠시만 기다려 주세요"
-        case .error: return "답변을 가져오지 못했어요.\n인터넷 연결을\n확인하고 다시\n이야기해 주세요."
+        case .error: return model.errorBubble ?? "답변을 가져오지 못했어요.\n인터넷 연결을\n확인하고 다시\n이야기해 주세요."
         case .listening, .answering: return model.assistantText.isEmpty ? "오늘 어떠셨어요?" : model.assistantText
         }
     }
 
     private var callerBox: some View {
         Text(model.callerText)
-            .font(.system(size: 23, weight: .medium)).lineSpacing(6)
+            .font(.system(size: 18, weight: .medium)).lineSpacing(4)
+            .lineLimit(3).truncationMode(.head)
             .foregroundStyle(Theme.text)
             .multilineTextAlignment(.center)
-            .padding(20)
+            .padding(14)
             .frame(maxWidth: .infinity)
             .background(Theme.callerBox, in: RoundedRectangle(cornerRadius: 26))
             .accessibilityLabel("내가 한 말: \(model.callerText)")
@@ -123,6 +133,7 @@ private struct DotLabelStyle: LabelStyle {
 /// 기억 제어 확인(앱 계획서 1.7). 대화 위에 뜨는 확인 창. 이유는 묻지 않는다. 10초 무응답이면 "아니요".
 struct MemoryConfirmView: View {
     let control: MemoryControl
+    let phase: ConversationViewModel.MemoryPhase
     let answer: (Bool) -> Void
     @State private var remaining = 10
 
@@ -138,18 +149,42 @@ struct MemoryConfirmView: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            Text(question).font(.system(size: 28, weight: .bold)).multilineTextAlignment(.center).padding(.top, 28)
-            VStack(spacing: 12) {
-                Button("네, 그렇게 해 주세요") { answer(true) }.buttonStyle(PrimaryButtonStyle())
-                Button("아니요") { answer(false) }.buttonStyle(SecondaryButtonStyle())
+            switch phase {
+            case .asking:
+                Text(question).font(.system(size: 28, weight: .bold)).multilineTextAlignment(.center).padding(.top, 28)
+                VStack(spacing: 12) {
+                    Button(control == .delete ? "네, 지워요" : "네, 그렇게 해 주세요") { answer(true) }.buttonStyle(PrimaryButtonStyle())
+                    Button("아니요") { answer(false) }.buttonStyle(SecondaryButtonStyle())
+                }
+                Text("\(remaining)초 뒤에는 그대로 둘게요").font(.footnote).foregroundStyle(Theme.muted)
+            case .sending:
+                ProgressView().padding(.top, 28)
+                Text("지우고 있어요.").font(.system(size: 24, weight: .semibold))
+            case .done:
+                message("지웠어요.", detail: "방금 말씀하신 내용은 남기지 않을게요.")
+            case .failed:
+                message("지금은 지우지 못했어요.", detail: "잠시 후 다시 말씀해 주세요.")
+            case .unsupported:
+                message("이 요청은 아직 도와드리지 못해요.", detail: "지우고 싶으실 때는 \"방금 한 말 잊어줘\"라고 말씀해 주세요.")
             }
-            Text("\(remaining)초 뒤에는 그대로 둘게요").font(.footnote).foregroundStyle(Theme.muted)
         }
         .padding(24)
         .frame(maxWidth: .infinity)
         .task {
-            while remaining > 0 { try? await Task.sleep(for: .seconds(1)); remaining -= 1 }
+            // 10초 무응답이면 "아니요". 이미 답했으면 모델이 무시한다.
+            while remaining > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                remaining -= 1
+            }
             answer(false)
+        }
+    }
+
+    private func message(_ title: String, detail: String) -> some View {
+        VStack(spacing: 12) {
+            Text(title).font(.system(size: 28, weight: .bold)).multilineTextAlignment(.center).padding(.top, 28)
+            Text(detail).font(.system(size: 20)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
         }
     }
 }

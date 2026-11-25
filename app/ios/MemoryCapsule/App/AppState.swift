@@ -59,8 +59,10 @@ final class AppState {
         if !AppInfo.useMock, let path = AppInfo.firebasePlistPath, let options = FirebaseOptions(contentsOfFile: path),
            FirebaseApp.app() == nil {
             #if canImport(FirebaseAppCheck)
-            FirebaseAppCheckService.install()      // configure() 전에
-            appCheck = FirebaseAppCheckService()
+            if AppInfo.useAppCheck {
+                FirebaseAppCheckService.install()      // configure() 전에
+                appCheck = FirebaseAppCheckService()
+            }
             #endif
             FirebaseApp.configure(options: options)
         }

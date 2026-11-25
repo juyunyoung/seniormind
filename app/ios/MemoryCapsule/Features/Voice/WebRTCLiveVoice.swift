@@ -18,6 +18,8 @@ final class WebRTCLiveVoice: NSObject, LiveVoice {
     private var pc: RTCPeerConnection?
     private var dc: RTCDataChannel?
     private var active = false
+    private var startedAt: Date?
+    private var seenTypes: Set<String> = []
     private var stopping = false
     private var timers: [Task<Void, Never>] = []
     private var iceComplete: CheckedContinuation<Void, Never>?
@@ -96,8 +98,9 @@ final class WebRTCLiveVoice: NSObject, LiveVoice {
         // 마이크는 즉시 끄고, 사용량 확정을 위해 이벤트 채널은 잠시 유지(PoC와 동일)
         pc?.senders.forEach { $0.track?.isEnabled = false }
         send(json: ["type": "session.close"])
+        // session.closed(최종 사용량)를 4초만 기다린다. 오지 않아도 화면이 멈춘 것처럼 보이지 않게 닫는다.
         timers.append(Task { [weak self] in
-            try? await Task.sleep(for: .seconds(15))
+            try? await Task.sleep(for: .seconds(4))
             guard let self, !Task.isCancelled else { return }
             self.cleanup(); self.onState(.ended("연결을 닫았어요."))
         })
@@ -110,11 +113,24 @@ final class WebRTCLiveVoice: NSObject, LiveVoice {
 
     // MARK: - 이벤트 처리
 
+    /// JSON 숫자를 밀리초 정수로(정수·실수 모두). 없으면 nil.
+    private static func ms(_ value: Any?) -> Int? {
+        guard let n = value as? NSNumber else { return nil }
+        let d = n.doubleValue
+        return d.isFinite ? Int(d.rounded()) : nil
+    }
+    /// 세션 시작 뒤 지난 시간(ms). 자막 이벤트에 start_ms가 없을 때 대신 쓴다.
+    private var elapsedMs: Int { Int((Date.now.timeIntervalSince(startedAt ?? .now)) * 1000) }
+
     private func handle(_ e: [String: Any]) {
         let type = e["type"] as? String ?? ""
+        #if DEBUG
+        // 실제 Live 이벤트 이름 확인용(내용은 찍지 않는다). 종류마다 한 번만.
+        if seenTypes.insert(type).inserted { print("[MC] Live 이벤트 종류: \(type) 키: \(e.keys.sorted())") }
+        #endif
         switch type {
         case "session.started":
-            active = true
+            active = true; startedAt = .now
             onEvent(.started); onState(.active)
             let limit = maxSeconds
             timers.append(Task { [weak self] in
@@ -122,24 +138,25 @@ final class WebRTCLiveVoice: NSObject, LiveVoice {
                 if !Task.isCancelled { self?.stop() }
             })
         case "session.closed":
-            if let s = (e["usage"] as? [String: Any])?["seconds"] as? Double { onEvent(.usage(seconds: s, final: true)) }
+            if let s = ((e["usage"] as? [String: Any])?["seconds"] as? NSNumber)?.doubleValue { onEvent(.usage(seconds: s, final: true)) }
             onEvent(.closed); cleanup(); onState(.ended("대화를 마쳤어요."))
         case "session.input_transcript.delta":
-            if let d = e["delta"] as? String, let s = e["start_ms"] as? Int {
-                onEvent(.inputDelta(id: e["event_id"] as? String ?? UUID().uuidString, text: d, startMs: s))
+            // start_ms는 실수로 오거나 없을 수 있다. 그래도 자막을 버리지 않는다(버리면 판단·저장이 모두 빠진다).
+            if let d = e["delta"] as? String, !d.isEmpty {
+                onEvent(.inputDelta(id: e["event_id"] as? String ?? UUID().uuidString, text: d, startMs: Self.ms(e["start_ms"]) ?? elapsedMs))
             }
-        case "session.input_transcript.done":
-            let s = e["start_ms"] as? Int ?? 0
-            onEvent(.inputDone(startMs: s, endMs: e["end_ms"] as? Int ?? s))
+        case "session.input_transcript.done", "session.input_transcript.completed":
+            let s = Self.ms(e["start_ms"]) ?? elapsedMs
+            onEvent(.inputDone(startMs: s, endMs: Self.ms(e["end_ms"]) ?? max(s, elapsedMs)))
         case "session.output_transcript.delta":
-            if let d = e["delta"] as? String, let s = e["start_ms"] as? Int {
+            if let d = e["delta"] as? String, !d.isEmpty {
                 speakingUntil = .now.addingTimeInterval(1.2)
-                onEvent(.outputDelta(id: e["event_id"] as? String ?? UUID().uuidString, text: d, startMs: s))
+                onEvent(.outputDelta(id: e["event_id"] as? String ?? UUID().uuidString, text: d, startMs: Self.ms(e["start_ms"]) ?? elapsedMs))
             }
         case "session.delegation.created":
             if let id = (e["delegation"] as? [String: Any])?["id"] as? String { onEvent(.delegation(id: id)) }
         case "session.usage.updated":
-            if let s = (e["usage"] as? [String: Any])?["seconds"] as? Double { onEvent(.usage(seconds: s, final: false)) }
+            if let s = ((e["usage"] as? [String: Any])?["seconds"] as? NSNumber)?.doubleValue { onEvent(.usage(seconds: s, final: false)) }
         case "error", "session.error":
             // 복구 가능한 경고. 연결은 유지(PoC와 동일)
             onEvent(.warning((e["error"] as? [String: Any])?["message"] as? String ?? ""))

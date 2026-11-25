@@ -158,15 +158,21 @@ struct GuardianTag: View {
     }
 }
 
-/// G11 · 연결을 확인해 주세요
+/// G11 · 불러오지 못했을 때. 이유를 주지 않으면 연결 확인 문구를 쓴다.
 struct GuardianErrorView: View {
+    var failure: BoardFailure = .network
     let retry: () -> Void
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "wifi.exclamationmark").font(.system(size: 40)).foregroundStyle(Theme.muted)
-            Text("연결을 확인해 주세요").font(.system(size: 22, weight: .bold))
-            Text("인터넷 연결을 확인하고 다시 불러와 주세요.").font(.system(size: 17)).foregroundStyle(Theme.muted)
+            Image(systemName: failure.icon).font(.system(size: 40)).foregroundStyle(Theme.muted)
+            Text(failure.title).font(.system(size: 22, weight: .bold))
+            Text(failure.message).font(.system(size: 17)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
+            #if DEBUG
+            if let detail = failure.debugText {
+                Text("원인: \(detail)").font(.system(size: 13)).foregroundStyle(Theme.muted)
+            }
+            #endif
             Button("다시 불러오기", action: retry).buttonStyle(SecondaryButtonStyle()).padding(.top, 8)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 40)
