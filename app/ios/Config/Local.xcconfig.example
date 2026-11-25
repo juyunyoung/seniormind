@@ -1,9 +1,20 @@
 // 이 파일을 Local.xcconfig로 복사해 값을 채운다. Local.xcconfig는 저장소에 올리지 않는다.
-MC_DEVELOPMENT_TEAM = ABCDE12345
+// 복사: cp "$HOME/seniormind/app/ios/Config/Local.xcconfig.example" "$HOME/seniormind/app/ios/Config/Local.xcconfig"
+MC_DEVELOPMENT_TEAM =
 
 // 유료 멤버십 전환 후: 푸시·시간 민감 알림·Sign in with Apple·App Attest
-// MC_ENTITLEMENTS = SeniorMind/Entitlements/Paid.entitlements
+// MC_ENTITLEMENTS = MemoryCapsule/Entitlements/Paid.entitlements
 
-// 백엔드(Cloud Run)가 준비되면
-// MC_API_BASE_URL = https:/$()/seniormind-api-xxxxx-du.a.run.app
-// MC_USE_MOCK = NO
+// 목 모드(서버 없이 화면만): YES / 실제 서버: NO
+MC_USE_MOCK = NO
+
+// 연결할 백엔드: seniormind(내 백엔드, 기본) | team(이현님 팀 서버)
+//   plist: MemoryCapsule/Firebase/GoogleService-Info-seniormind.plist / GoogleService-Info-team.plist
+MC_BACKEND = seniormind
+
+// 다른 백엔드를 쓸 때(예: 개인 테스트 서버). <이름>은 영문·숫자로 자유롭게 정한다.
+// MC_BACKEND = <이름>
+// MC_API_BASE_URL_<이름> = https:/$()/<서버 주소>        (// 뒤는 주석이 되므로 https:/$()/ 형식)
+// MC_BUNDLE_ID_<이름> = <그 Firebase 프로젝트에 등록한 iOS 번들 ID>
+// MC_FIREBASE_PLIST_<이름> = GoogleService-Info-<이름>    (MemoryCapsule/Firebase/ 안의 파일 이름)
+// MC_FIREBASE_PROJECT_<이름> = <Firebase 프로젝트 ID>      (scripts/switch_backend.sh가 plist 확인에 씀)

@@ -1,7 +1,8 @@
 # XcodeGen으로 생성
 *.xcodeproj
 # 비밀·개인 설정은 올리지 않음
-SeniorMind/GoogleService-Info.plist
+MemoryCapsule/GoogleService-Info.plist
+MemoryCapsule/Firebase/
 Config/Local.xcconfig
 xcuserdata/
 DerivedData/
